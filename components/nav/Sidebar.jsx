@@ -9,7 +9,7 @@ export default function Sidebar({ items, nombre }) {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden md:flex w-60 bg-slate-900 text-slate-300 flex-col print:hidden sticky top-0 h-screen overflow-y-auto">
+    <aside className="hidden md:flex w-60 bg-slate-900 text-slate-300 flex-col print:hidden fixed top-0 left-0 h-screen overflow-y-auto z-40">
       <div className="p-5 border-b border-white/10">
         <div className="font-bold text-white">GestorCompras</div>
         <div className="text-xs text-slate-500">{nombre}</div>

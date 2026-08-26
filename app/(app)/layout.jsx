@@ -50,7 +50,7 @@ export default async function AppLayout({ children }) {
       <Sidebar items={items} nombre={nombre} />
 
       {/* Contenido principal */}
-      <div className="flex-1 flex flex-col min-h-screen min-w-0">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0 md:ml-60">
         {/* Mobile header */}
         <MobileHeader items={items} nombre={nombre} />
 
