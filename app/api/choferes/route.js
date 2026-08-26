@@ -1,14 +1,80 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { obtenerSesion } from '@/lib/session';
+import { filtrosChoferes, whereDe } from '@/lib/reportes';
 
-export async function GET() {
+const ORDEN = {
+  nro: 'c.id',
+  nombre: 'c.nombre',
+  documento: 'c.documento',
+  licencia: 'c.licencia',
+  calificacion: 'c.calificacion',
+};
+
+/** Valida y normaliza los datos del conductor (hoja Excel "Conductores"). */
+function validarConductor(body = {}) {
+  const texto = v => {
+    const t = String(v ?? '').trim();
+    return t === '' ? null : t;
+  };
+  const nombre = texto(body.nombre);
+  if (!nombre) return { ok: false, error: 'El nombre del conductor es obligatorio' };
+
+  const placa = texto(body.placa); // se mantiene por compatibilidad con Gastos de Chofer
+  if (!placa) return { ok: false, error: 'La placa es obligatoria' };
+
+  const documento = texto(body.documento);
+  if (documento && !/^[A-Za-z0-9.\-]{4,20}$/.test(documento)) {
+    return { ok: false, error: 'El documento debe tener entre 4 y 20 caracteres (letras, números, punto o guion)' };
+  }
+  const licencia = texto(body.licencia);
+  if (licencia && !/^[A-Za-z0-9\-]{4,20}$/.test(licencia)) {
+    return { ok: false, error: 'El número de licencia debe tener entre 4 y 20 caracteres' };
+  }
+  const telefono = texto(body.telefono);
+  if (telefono && !/^[+\d][\d\s\-()]{5,20}$/.test(telefono)) {
+    return { ok: false, error: 'El teléfono/celular no tiene un formato válido' };
+  }
+
+  let calificacion = body.calificacion === '' || body.calificacion === null || body.calificacion === undefined
+    ? null
+    : Number(body.calificacion);
+  if (calificacion !== null && (!Number.isInteger(calificacion) || calificacion < 1 || calificacion > 5)) {
+    return { ok: false, error: 'La calificación debe ser entre 1 y 5 estrellas' };
+  }
+
+  return {
+    ok: true,
+    datos: { nombre, placa, documento, licencia, telefono, direccion: texto(body.direccion), calificacion },
+  };
+}
+
+export async function GET(request) {
   const sesion = await obtenerSesion();
   if (!sesion) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  // Cualquier usuario autenticado puede ver la lista (la necesita el formulario de gasto de chofer)
-  const choferes = await query('SELECT * FROM choferes ORDER BY nombre ASC');
-  return NextResponse.json({ choferes });
+  const { searchParams } = new URL(request.url);
+  const filtro = whereDe(filtrosChoferes(Object.fromEntries(searchParams.entries())));
+  const orden = ORDEN[searchParams.get('sort')] || 'nombre';
+  const dir = searchParams.get('dir') === 'desc' ? 'DESC' : 'ASC';
+
+  // Nota: la lista incluye inactivos para poder reactivarlos (patrón del proyecto)
+  const choferes = await query(
+    `SELECT c.* FROM choferes c ${filtro.texto} ORDER BY ${orden} ${dir} NULLS LAST, c.nombre ASC`,
+    filtro.params
+  );
+
+  const resumenRows = await query(`
+    SELECT count(*) FILTER (WHERE activo)::int AS total_activos,
+           count(*)::int AS total,
+           count(*) FILTER (WHERE activo AND calificacion = 1)::int AS cal_1,
+           count(*) FILTER (WHERE activo AND calificacion = 2)::int AS cal_2,
+           count(*) FILTER (WHERE activo AND calificacion = 3)::int AS cal_3,
+           count(*) FILTER (WHERE activo AND calificacion = 4)::int AS cal_4,
+           count(*) FILTER (WHERE activo AND calificacion = 5)::int AS cal_5
+    FROM choferes`);
+
+  return NextResponse.json({ choferes, resumen: resumenRows[0] });
 }
 
 export async function POST(request) {
@@ -17,14 +83,22 @@ export async function POST(request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
-  const { nombre, placa, telefono, direccion } = await request.json();
-  if (!nombre?.trim() || !placa?.trim()) {
-    return NextResponse.json({ error: 'Nombre y placa son obligatorios' }, { status: 400 });
-  }
+  const body = await request.json();
+  const validacion = validarConductor(body);
+  if (!validacion.ok) return NextResponse.json({ error: validacion.error }, { status: 400 });
+  const d = validacion.datos;
 
-  const rows = await query(
-    `INSERT INTO choferes (nombre, placa, telefono, direccion) VALUES ($1,$2,$3,$4) RETURNING *`,
-    [nombre, placa, telefono || null, direccion || null]
-  );
-  return NextResponse.json({ chofer: rows[0] }, { status: 201 });
+  try {
+    const rows = await query(
+      `INSERT INTO choferes (nombre, placa, documento, licencia, telefono, direccion, calificacion)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [d.nombre, d.placa, d.documento, d.licencia, d.telefono, d.direccion, d.calificacion]
+    );
+    return NextResponse.json({ chofer: rows[0] }, { status: 201 });
+  } catch (err) {
+    if (err.code === '23514') {
+      return NextResponse.json({ error: 'Datos inválidos (revise la calificación)' }, { status: 400 });
+    }
+    throw err;
+  }
 }

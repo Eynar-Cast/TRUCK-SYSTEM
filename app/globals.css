@@ -10,6 +10,7 @@
 }
 
 html.dark {
+  --foreground: #e2e8f0;
   color-scheme: dark;
   color: #e2e8f0;
 }

@@ -41,15 +41,19 @@ CREATE TABLE devoluciones (
   fecha        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- ---- CHOFERES ----
+-- ---- CHOFERES / CONDUCTORES ----
 CREATE TABLE choferes (
-  id         SERIAL PRIMARY KEY,
-  nombre     TEXT NOT NULL,
-  placa      TEXT NOT NULL,
-  telefono   TEXT,
-  direccion  TEXT,
-  activo     BOOLEAN NOT NULL DEFAULT TRUE,
-  creado     TIMESTAMPTZ NOT NULL DEFAULT now()
+  id           SERIAL PRIMARY KEY,
+  nombre       TEXT NOT NULL,
+  placa        TEXT NOT NULL,
+  telefono     TEXT,
+  direccion    TEXT,
+  -- Fase Flota/Conductores: hoja Excel "Conductores"
+  documento    TEXT,
+  licencia     TEXT,
+  calificacion SMALLINT CHECK (calificacion IS NULL OR calificacion BETWEEN 1 AND 5),
+  activo       BOOLEAN NOT NULL DEFAULT TRUE,
+  creado       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ---- GASTOS DE CHOFER ----
@@ -68,3 +72,148 @@ CREATE TABLE gastos_chofer (
   fecha          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_gastos_chofer_fecha ON gastos_chofer(chofer_id, fecha DESC);
+
+-- ============================================================
+-- Fase Flota / Seguros / Conductores (ver db/migraciones/)
+-- ============================================================
+
+-- ---- CATÁLOGOS (tipo_vehiculo | marca | modelo) ----
+CREATE TABLE catalogos (
+  id     SERIAL PRIMARY KEY,
+  tipo   TEXT NOT NULL CHECK (tipo IN ('tipo_vehiculo','marca','modelo')),
+  valor  TEXT NOT NULL,
+  activo BOOLEAN NOT NULL DEFAULT TRUE,
+  creado TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_catalogos_tipo_valor UNIQUE (tipo, valor)
+);
+
+-- ---- FLOTA (vehículos) ----
+-- Estado del vehículo y control preventivo: derivados en consulta
+-- (lib/flota.js); nunca se almacenan.
+CREATE TABLE flota (
+  id                     SERIAL PRIMARY KEY,
+  tipo                   TEXT NOT NULL,
+  marca                  TEXT NOT NULL,
+  modelo                 TEXT NOT NULL,
+  placa                  TEXT NOT NULL UNIQUE,
+  numero_serie           TEXT,
+  color                  TEXT,
+  anio                   INTEGER CHECK (anio IS NULL OR anio BETWEEN 1950 AND 2100),
+  carga_maxima_kg        NUMERIC(10,2) CHECK (carga_maxima_kg IS NULL OR carga_maxima_kg >= 0),
+  ciclo_mantenimiento_km INTEGER CHECK (ciclo_mantenimiento_km IS NULL OR ciclo_mantenimiento_km > 0),
+  odometro_inicial       INTEGER CHECK (odometro_inicial IS NULL OR odometro_inicial >= 0),
+  activo                 BOOLEAN NOT NULL DEFAULT TRUE,
+  creado                 TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_flota_placa ON flota(placa);
+CREATE INDEX idx_flota_marca ON flota(marca);
+CREATE INDEX idx_flota_modelo ON flota(modelo);
+
+-- ---- SEGUROS (relacionados al vehículo mediante PLACA) ----
+-- Estado de la póliza: derivado de fecha_vencimiento vs HOY (Vigente/Vencido).
+CREATE TABLE seguros (
+  id                SERIAL PRIMARY KEY,
+  placa             TEXT NOT NULL REFERENCES flota(placa) ON UPDATE CASCADE ON DELETE RESTRICT,
+  aseguradora       TEXT NOT NULL,
+  poliza            TEXT NOT NULL,
+  fecha_inicio      DATE,
+  fecha_vencimiento DATE,
+  importe_pagado    NUMERIC(12,2) CHECK (importe_pagado IS NULL OR importe_pagado >= 0),
+  fecha_pago        DATE,
+  activo            BOOLEAN NOT NULL DEFAULT TRUE,
+  creado            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_seguros_placa ON seguros(placa);
+CREATE INDEX idx_seguros_vencimiento ON seguros(fecha_vencimiento);
+
+-- ---- REFERENCIAS FAMILIARES del conductor ----
+CREATE TABLE conductor_referencias (
+  id         SERIAL PRIMARY KEY,
+  chofer_id  INTEGER NOT NULL REFERENCES choferes(id) ON DELETE CASCADE,
+  nombre     TEXT NOT NULL,
+  parentesco TEXT,
+  telefono   TEXT,
+  creado     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_cond_ref_chofer ON conductor_referencias(chofer_id);
+
+-- ---- SEGURO INDIVIDUAL del conductor (historial = varios registros) ----
+CREATE TABLE conductor_seguros (
+  id                SERIAL PRIMARY KEY,
+  chofer_id         INTEGER NOT NULL REFERENCES choferes(id) ON DELETE CASCADE,
+  fecha_inicio      DATE,
+  fecha_expiracion  DATE,
+  creado            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_cond_seg_chofer ON conductor_seguros(chofer_id);
+
+-- ============================================================
+-- Módulos Camiones (llantas, aceites, seguro de carga) y
+-- Chóferes (multas, documentación) — migración 002
+-- ============================================================
+
+ALTER TABLE flota ADD COLUMN operador_logistico TEXT;
+ALTER TABLE flota ADD COLUMN chofer_id INTEGER REFERENCES choferes(id) ON DELETE SET NULL;
+
+-- Control de llantas (historial; cambio programado cada 3 meses)
+CREATE TABLE llantas (
+  id             SERIAL PRIMARY KEY,
+  flota_id       INTEGER NOT NULL REFERENCES flota(id) ON DELETE CASCADE,
+  llantas_tracto INTEGER CHECK (llantas_tracto IS NULL OR llantas_tracto >= 0),
+  llantas_chata  INTEGER CHECK (llantas_chata IS NULL OR llantas_chata >= 0),
+  marca          TEXT,
+  fecha_cambio   DATE,
+  proxima_fecha  DATE,
+  observacion    TEXT,
+  creado         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_llantas_flota ON llantas(flota_id);
+
+-- Control de aceites (motor / caja / corona)
+CREATE TABLE aceites (
+  id                  SERIAL PRIMARY KEY,
+  flota_id            INTEGER NOT NULL REFERENCES flota(id) ON DELETE CASCADE,
+  tipo                TEXT NOT NULL CHECK (tipo IN ('motor','caja','corona')),
+  marca               TEXT,
+  fecha_ultimo_cambio DATE,
+  proxima_fecha       DATE,
+  observacion         TEXT,
+  creado              TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_aceites_flota ON aceites(flota_id);
+
+-- Seguro de carga del camión (estado derivado Vigente/Vencido)
+CREATE TABLE seguros_carga (
+  id                SERIAL PRIMARY KEY,
+  flota_id          INTEGER NOT NULL REFERENCES flota(id) ON DELETE CASCADE,
+  poliza            TEXT NOT NULL,
+  fecha_tramite     DATE,
+  fecha_inicio      DATE,
+  fecha_expiracion  DATE,
+  activo            BOOLEAN NOT NULL DEFAULT TRUE,
+  creado            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_seguros_carga_flota ON seguros_carga(flota_id);
+
+-- Multas del conductor
+CREATE TABLE multas (
+  id            SERIAL PRIMARY KEY,
+  chofer_id     INTEGER NOT NULL REFERENCES choferes(id) ON DELETE CASCADE,
+  fecha         DATE NOT NULL,
+  motivo        TEXT NOT NULL,
+  monto         NUMERIC(10,2) CHECK (monto IS NULL OR monto >= 0),
+  observaciones TEXT,
+  creado        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_multas_chofer ON multas(chofer_id);
+
+-- Documentación del conductor (luz, agua, croquis, adjuntos con imagen en Blob)
+CREATE TABLE conductor_documentos (
+  id          SERIAL PRIMARY KEY,
+  chofer_id   INTEGER NOT NULL REFERENCES choferes(id) ON DELETE CASCADE,
+  tipo        TEXT NOT NULL CHECK (tipo IN ('luz','agua','croquis','adjunto')),
+  archivo     TEXT,
+  observacion TEXT,
+  creado      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_cond_doc_chofer ON conductor_documentos(chofer_id);

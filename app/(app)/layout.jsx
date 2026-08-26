@@ -23,9 +23,13 @@ const NAV_USER = [
 
 const NAV_ADMIN = [
   { href: '/historial', label: 'Historial global', icon: '📊' },
-  { href: '/choferes', label: 'Choferes', icon: '🚛' },
-  { href: '/gastos-choferes', label: 'Gastos choferes', icon: '📋' },
+  { href: '/flota', label: 'Flota / Camiones', icon: '🚚' },
+  { href: '/seguros', label: 'Seguros', icon: '🛡️' },
+  { href: '/choferes', label: 'Conductores', icon: '👨‍✈️' },
+  { href: '/reportes', label: 'Reportes mensuales', icon: '📅' },
+  { href: '/gastos-choferes', label: 'Gastos conductores', icon: '📋' },
   { href: '/usuarios', label: 'Usuarios', icon: '👥' },
+  { href: '/catalogos', label: 'Catálogos', icon: '🏷️' },
   { href: '/exportar', label: 'Exportar Datos', icon: '⬇️' },
   { href: '/limpiar-datos', label: 'Limpiar Base de Datos', icon: '🗑️' },
 ];

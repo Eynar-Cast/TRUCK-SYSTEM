@@ -42,9 +42,9 @@ export default function TablaCompras({ compras = [], onVerDetalle, mostrarUsuari
         <tbody>
           {compras.map((c) => (
             <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-              <td className="py-3 px-3 font-medium text-slate-800">{c.producto}</td>
-              <td className="py-3 px-3 text-slate-700">{fmt(c.precio)}</td>
-              {mostrarUsuario && <td className="py-3 px-3 text-slate-600">{c.usuario_nombre || '—'}</td>}
+              <td className="py-3 px-3 font-medium text-slate-800 dark:text-slate-200">{c.producto}</td>
+              <td className="py-3 px-3 text-slate-700 dark:text-slate-300">{fmt(c.precio)}</td>
+              {mostrarUsuario && <td className="py-3 px-3 text-slate-600 dark:text-slate-400">{c.usuario_nombre || '—'}</td>}
               <td className="py-3 px-3">
                 <Badge tipo={c.tiene_factura ? 'factura' : 'sin_factura'} />
               </td>

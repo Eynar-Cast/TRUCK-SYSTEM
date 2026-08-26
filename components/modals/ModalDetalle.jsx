@@ -29,13 +29,13 @@ export default function ModalDetalle({ compra, onClose }) {
       className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
       onClick={handleOverlayClick}
     >
-      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-200">
-          <h2 className="text-lg font-bold text-slate-900">Detalle de compra</h2>
+        <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Detalle de compra</h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 text-xl leading-none transition"
+            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 text-xl leading-none transition"
             aria-label="Cerrar modal"
           >
             ✕
@@ -59,38 +59,38 @@ export default function ModalDetalle({ compra, onClose }) {
           )}
 
           {/* Factura */}
-          <div className="border-t border-slate-100 pt-4">
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-medium text-slate-700">Factura:</span>
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Factura:</span>
               <Badge tipo={compra.tiene_factura ? 'factura' : 'sin_factura'} />
             </div>
             {compra.tiene_factura && compra.foto_factura && (
               <img
                 src={compra.foto_factura}
                 alt="Foto de factura"
-                className="rounded-lg border border-slate-200 max-h-60 w-auto shadow-sm"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 max-h-60 w-auto shadow-sm"
               />
             )}
           </div>
 
           {/* Comprobante QR */}
           {compra.tipo_pago === 'qr' && compra.foto_qr && (
-            <div className="border-t border-slate-100 pt-4">
-              <p className="text-sm font-medium text-slate-700 mb-2">Comprobante QR:</p>
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Comprobante QR:</p>
               <img
                 src={compra.foto_qr}
                 alt="Comprobante de pago QR"
-                className="rounded-lg border border-slate-200 max-h-60 w-auto shadow-sm"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 max-h-60 w-auto shadow-sm"
               />
             </div>
           )}
 
           {/* Estado de devolución */}
           {compra.devuelto && (
-            <div className="border-t border-slate-100 pt-4 bg-amber-50 -mx-5 px-5 py-4 rounded-b-xl">
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-4 bg-amber-50 dark:bg-amber-950/40 -mx-5 px-5 py-4 rounded-b-xl">
               <div className="flex items-center gap-2 mb-3">
                 <Badge tipo="devuelto" />
-                <span className="text-sm font-medium text-amber-800">Compra devuelta</span>
+                <span className="text-sm font-medium text-amber-800 dark:text-amber-300">Compra devuelta</span>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <Campo label="Motivo" valor={compra.devolucion_motivo || compra.motivo} small />
@@ -107,7 +107,7 @@ export default function ModalDetalle({ compra, onClose }) {
                   <img
                     src={compra.devolucion_comprobante || compra.comprobante_devolucion}
                     alt="Comprobante de devolución"
-                    className="rounded-lg border border-amber-200 max-h-48 w-auto shadow-sm"
+                    className="rounded-lg border border-amber-200 dark:border-amber-900 max-h-48 w-auto shadow-sm"
                   />
                 </div>
               )}
@@ -125,8 +125,8 @@ export default function ModalDetalle({ compra, onClose }) {
 function Campo({ label, valor, children, small = false }) {
   return (
     <div>
-      <p className={`font-medium text-slate-500 mb-0.5 ${small ? 'text-xs' : 'text-xs'}`}>{label}</p>
-      {children || <p className={`text-slate-800 ${small ? 'text-sm' : 'text-sm'}`}>{valor || '—'}</p>}
+      <p className={`font-medium text-slate-500 dark:text-slate-400 mb-0.5 ${small ? 'text-xs' : 'text-xs'}`}>{label}</p>
+      {children || <p className={`text-slate-800 dark:text-slate-200 ${small ? 'text-sm' : 'text-sm'}`}>{valor || '—'}</p>}
     </div>
   );
 }

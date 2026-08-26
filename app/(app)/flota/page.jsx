@@ -1,0 +1,438 @@
+'use client';
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import StatCard from '@/components/ui/StatCard';
+import { descargar } from '@/lib/utils';
+
+/**
+ * Reporte de Camiones — listado y consulta de la flota.
+ * Tipos de unidad: Tracto / Chata / Sider · con operador logístico
+ * y conductor designado.
+ */
+
+const ESTADO_VEHICULO_ESTILO = {
+  'Disponible': 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+  'Seguro Vencido': 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300',
+  'Mantenimiento': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+};
+
+const VACIO = { tipo: '', marca: '', modelo: '', placa: '', numero_serie: '', color: '', anio: '', carga_maxima_kg: '', operador_logistico: '', chofer_id: '' };
+
+// Columnas del reporte (key = campo ordenable)
+const COLUMNAS = [
+  { key: 'nro', label: 'Nro' },
+  { key: 'placa', label: 'Placa' },
+  { key: 'color', label: 'Color' },
+  { key: 'tipo', label: 'Tipo' },
+  { key: 'anio', label: 'Año' },
+  { key: 'modelo', label: 'Modelo' },
+  { key: null, label: 'Operador logístico' },
+  { key: null, label: 'Conductor designado' },
+  { key: 'estado', label: 'Estado' },
+  { key: null, label: '🛞 Llantas' },
+  { key: null, label: '🛢️ Aceites' },
+];
+
+const ESTADO_MANT_ESTILO = {
+  'Cambiar ya': 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300',
+  'Por cambiar': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  'Al día': 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+};
+
+function BadgeMantenimiento({ estado, titulo }) {
+  if (!estado) return <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>;
+  return (
+    <span title={titulo || ''} className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${ESTADO_MANT_ESTILO[estado]}`}>
+      {estado}
+    </span>
+  );
+}
+
+export default function FlotaPage() {
+  const [vehiculos, setVehiculos] = useState([]);
+  const [resumen, setResumen] = useState(null);
+  const [catalogos, setCatalogos] = useState({ tipo_vehiculo: [], marca: [], modelo: [] });
+  const [choferes, setChoferes] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+
+  const [q, setQ] = useState('');
+  const [fTipo, setFTipo] = useState('');
+  const [fMarca, setFMarca] = useState('');
+  const [fModelo, setFModelo] = useState('');
+  const [fEstado, setFEstado] = useState('');
+  const [sort, setSort] = useState('nro');
+  const [dir, setDir] = useState('asc');
+
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [editando, setEditando] = useState(null);
+  const [form, setForm] = useState(VACIO);
+  const [guardando, setGuardando] = useState(false);
+  const [errorModal, setErrorModal] = useState('');
+
+  const params = useCallback(() => {
+    const p = new URLSearchParams();
+    if (q) p.set('q', q);
+    if (fTipo) p.set('tipo', fTipo);
+    if (fMarca) p.set('marca', fMarca);
+    if (fModelo) p.set('modelo', fModelo);
+    if (fEstado) p.set('estado', fEstado);
+    p.set('sort', sort);
+    p.set('dir', dir);
+    return p;
+  }, [q, fTipo, fMarca, fModelo, fEstado, sort, dir]);
+
+  const cargar = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/flota?${params().toString()}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setVehiculos(data.vehiculos);
+      setResumen(data.resumen);
+      setError('');
+    } catch {
+      setError('No se pudo cargar el reporte de camiones');
+    }
+    setCargando(false);
+  }, [params]);
+
+  useEffect(() => { const t = setTimeout(cargar, 250); return () => clearTimeout(t); }, [cargar]);
+
+  useEffect(() => {
+    fetch('/api/catalogos')
+      .then(r => r.json())
+      .then(data => {
+        const agrupado = { tipo_vehiculo: [], marca: [], modelo: [] };
+        for (const c of data.catalogos || []) {
+          if (c.activo && agrupado[c.tipo]) agrupado[c.tipo].push(c.valor);
+        }
+        setCatalogos(agrupado);
+      })
+      .catch(() => {});
+    fetch('/api/choferes')
+      .then(r => r.json())
+      .then(data => setChoferes((data.choferes || []).filter(c => c.activo)))
+      .catch(() => {});
+  }, []);
+
+  function ordenarPor(col) {
+    if (sort === col) setDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSort(col); setDir('asc'); }
+  }
+
+  function abrirNuevo() {
+    setEditando(null);
+    setForm(VACIO);
+    setErrorModal('');
+    setModalAbierto(true);
+  }
+
+  function abrirEditar(v) {
+    setEditando(v);
+    setForm({
+      tipo: v.tipo, marca: v.marca, modelo: v.modelo, placa: v.placa,
+      numero_serie: v.numero_serie || '', color: v.color || '',
+      anio: v.anio ?? '', carga_maxima_kg: v.carga_maxima_kg ?? '',
+      operador_logistico: v.operador_logistico || '',
+      chofer_id: v.chofer_id ?? '',
+    });
+    setErrorModal('');
+    setModalAbierto(true);
+  }
+
+  async function guardar(e) {
+    e.preventDefault();
+    setGuardando(true);
+    const url = editando ? `/api/flota/${editando.id}` : '/api/flota';
+    try {
+      const res = await fetch(url, {
+        method: editando ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorModal(data.error || 'Error al guardar');
+        setGuardando(false);
+        return;
+      }
+      setModalAbierto(false);
+      await cargar();
+    } catch {
+      setErrorModal('Error de conexión al guardar');
+    }
+    setGuardando(false);
+  }
+
+  async function toggleActivo(v) {
+    if (v.activo) {
+      const ok = window.confirm(`¿Desactivar el vehículo con placa ${v.placa}? Puedes reactivarlo después.`);
+      if (!ok) return;
+    }
+    const res = await fetch(`/api/flota/${v.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'toggle' }),
+    });
+    if (!res.ok) { setError('No se pudo cambiar el estado del vehículo'); return; }
+    await cargar();
+  }
+
+  const inputCls = 'w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100';
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6 no-print">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Flota / Camiones</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Tractocamiones y unidades chata o sider</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => window.print()} className="bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-4 py-2 rounded-lg text-sm">🖨️ Imprimir</button>
+          <button onClick={() => descargar(`/api/flota/exportar?${params().toString()}`)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg text-sm">⬇️ Exportar Excel</button>
+          <button onClick={abrirNuevo} className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm">➕ Nuevo vehículo</button>
+        </div>
+      </div>
+
+      {/* Indicadores */}
+      {resumen && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          <StatCard titulo="Total de vehículos" valor={resumen.total} icono="🚚" color="blue" />
+          <StatCard titulo="Disponibles" valor={resumen.disponibles} icono="✅" color="green" />
+          <StatCard titulo="Con seguro vencido" valor={resumen.seguro_vencido} icono="⚠️" color="red" />
+          <StatCard titulo="Seguro por vencer (30 días)" valor={resumen.por_vencer} icono="📅" color="amber" />
+          <StatCard titulo="Llantas por cambiar" valor={resumen.llantas_por_cambiar} icono="🛞" color={resumen.llantas_por_cambiar > 0 ? 'red' : 'green'} />
+          <StatCard titulo="Aceites por cambiar" valor={resumen.aceites_por_cambiar} icono="🛢️" color={resumen.aceites_por_cambiar > 0 ? 'red' : 'green'} />
+        </div>
+      )}
+
+      {/* Alertas de cambio de llantas y aceites */}
+      {(() => {
+        const yaLL = vehiculos.filter(v => v.llantas_estado === 'Cambiar ya');
+        const prontoLL = vehiculos.filter(v => v.llantas_estado === 'Por cambiar');
+        const yaAC = vehiculos.filter(v => v.aceites_estado === 'Cambiar ya');
+        const prontoAC = vehiculos.filter(v => v.aceites_estado === 'Por cambiar');
+        if (!yaLL.length && !prontoLL.length && !yaAC.length && !prontoAC.length) return null;
+        return (
+          <div className="space-y-2 mb-4 no-print">
+            {(yaLL.length > 0 || yaAC.length > 0) && (
+              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-900 text-sm text-red-700 dark:text-red-300">
+                🚨 <b>¡Cambio necesario ahora!</b>{' '}
+                {yaLL.length > 0 && <span>🛞 Llantas: <b>{yaLL.map(v => v.placa).join(', ')}</b>. </span>}
+                {yaAC.length > 0 && (
+                  <span>
+                    🛢️ Aceites:{' '}
+                    {yaAC.map(v => {
+                      const tipos = Object.entries(v.aceites_detalle || {})
+                        .filter(([, d]) => d.estado === 'Cambiar ya')
+                        .map(([t]) => t);
+                      return `${v.placa} (${tipos.join(', ')})`;
+                    }).join(' · ')}
+                    .
+                  </span>
+                )}
+              </div>
+            )}
+            {(prontoLL.length > 0 || prontoAC.length > 0) && (
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-900 text-sm text-amber-700 dark:text-amber-300">
+                ⏳ <b>Por cambiar (próximos 15 días):</b>{' '}
+                {prontoLL.length > 0 && <span>🛞 Llantas: {prontoLL.map(v => v.placa).join(', ')}. </span>}
+                {prontoAC.length > 0 && (
+                  <span>
+                    🛢️ Aceites:{' '}
+                    {prontoAC.map(v => {
+                      const tipos = Object.entries(v.aceites_detalle || {})
+                        .filter(([, d]) => d.estado === 'Por cambiar')
+                        .map(([t]) => t);
+                      return `${v.placa} (${tipos.join(', ')})`;
+                    }).join(' · ')}
+                    .
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {error && <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-sm no-print">{error}</div>}
+
+      {/* Búsqueda y filtros del módulo */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 mb-4 no-print">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 Buscar: placa, modelo, serie, operador…" className={`${inputCls} col-span-2`} />
+          <select value={fTipo} onChange={e => setFTipo(e.target.value)} className={inputCls}>
+            <option value="">Tipo: todos</option>
+            {catalogos.tipo_vehiculo.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select value={fMarca} onChange={e => { setFMarca(e.target.value); setFModelo(''); }} className={inputCls}>
+            <option value="">Marca: todas</option>
+            {catalogos.marca.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select value={fModelo} onChange={e => setFModelo(e.target.value)} className={inputCls}>
+            <option value="">Modelo: todos</option>
+            {catalogos.modelo.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select value={fEstado} onChange={e => setFEstado(e.target.value)} className={inputCls}>
+            <option value="">Estado: todos</option>
+            <option value="Disponible">Disponible</option>
+            <option value="Seguro Vencido">Seguro Vencido</option>
+            <option value="Mantenimiento">Mantenimiento</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Tabla / reporte */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        {cargando ? (
+          <div className="p-12 text-center text-slate-400 dark:text-slate-500">Cargando...</div>
+        ) : vehiculos.length === 0 ? (
+          <div className="p-12 text-center text-slate-400 dark:text-slate-500">
+            <div className="text-4xl mb-3">🚛</div>
+            <p className="font-medium">No hay vehículos que coincidan con la búsqueda</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b-2 border-slate-200 dark:border-slate-800 text-left whitespace-nowrap">
+                  {COLUMNAS.map((col, i) => (
+                    <th key={i} onClick={() => col.key && ordenarPor(col.key)}
+                      className={`px-3 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase ${col.key ? 'cursor-pointer hover:text-slate-700 dark:hover:text-slate-200' : ''}`}>
+                      {col.label}
+                      {col.key && sort === col.key && (dir === 'asc' ? ' ▲' : ' ▼')}
+                    </th>
+                  ))}
+                  <th className="px-3 py-3 no-print"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {vehiculos.map((v, i) => (
+                  <tr key={v.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td className="px-3 py-2.5 text-slate-400">{i + 1}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={`font-mono text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${v.activo ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'}`}>
+                        {v.placa}{!v.activo && ' · Inactivo'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{v.color || '—'}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300">{v.tipo}</td>
+                    <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300">{v.anio ?? '—'}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap font-medium text-slate-800 dark:text-slate-200">{v.marca} {v.modelo}</td>
+                    <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{v.operador_logistico || '—'}</td>
+                    <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{v.conductor_designado || '—'}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${ESTADO_VEHICULO_ESTILO[v.estado_vehiculo] || ''}`}>
+                        {v.activo ? v.estado_vehiculo : 'Inactivo'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <BadgeMantenimiento estado={v.llantas_estado}
+                        titulo={v.llantas_proxima ? `Próximo cambio: ${v.llantas_proxima.slice(0, 10)}` : 'Sin registro de próximo cambio'} />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {(() => {
+                        if (!v.aceites_estado) return <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>;
+                        const tipos = Object.entries(v.aceites_detalle || {})
+                          .filter(([, d]) => d.estado === v.aceites_estado)
+                          .map(([t, d]) => `${t}: ${d.fecha?.slice(0, 10)}`);
+                        return (
+                          <BadgeMantenimiento estado={v.aceites_estado} titulo={tipos.join(' · ')} />
+                        );
+                      })()}
+                    </td>
+                    <td className="px-3 py-2.5 no-print">
+                      <div className="flex gap-1.5 whitespace-nowrap">
+                        <Link href={`/flota/${v.id}`} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200">🔍 Ver</Link>
+                        <button onClick={() => abrirEditar(v)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300">✏️ Editar</button>
+                        <button onClick={() => toggleActivo(v)}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium ${v.activo ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60'}`}>
+                          {v.activo ? 'Desactivar' : 'Activar'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Modal nuevo/editar */}
+      {modalAbierto && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setModalAbierto(false); }}>
+          <form onSubmit={guardar} className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl p-6 max-h-[92vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{editando ? `Editar vehículo ${editando.placa}` : 'Nuevo vehículo'}</h3>
+              <button type="button" onClick={() => setModalAbierto(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            </div>
+
+            {errorModal && <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-sm">{errorModal}</div>}
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo *</label>
+                <input required list="lista-tipos" value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })} className={inputCls} placeholder="Ej: Tractocamión" />
+                <datalist id="lista-tipos">{catalogos.tipo_vehiculo.map(t => <option key={t} value={t} />)}</datalist>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Marca *</label>
+                <input required list="lista-marcas" value={form.marca} onChange={e => setForm({ ...form, marca: e.target.value })} className={inputCls} placeholder="Ej: Volvo" />
+                <datalist id="lista-marcas">{catalogos.marca.map(m => <option key={m} value={m} />)}</datalist>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Modelo *</label>
+                <input required list="lista-modelos" value={form.modelo} onChange={e => setForm({ ...form, modelo: e.target.value })} className={inputCls} placeholder="Ej: FH 460" />
+                <datalist id="lista-modelos">{catalogos.modelo.map(m => <option key={m} value={m} />)}</datalist>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Placa *</label>
+                <input required value={form.placa} onChange={e => setForm({ ...form, placa: e.target.value.toUpperCase() })} className={`${inputCls} font-mono`} placeholder="Ej: 1234-ABC" maxLength={15} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">N° de serie</label>
+                <input value={form.numero_serie} onChange={e => setForm({ ...form, numero_serie: e.target.value })} className={inputCls} placeholder="Ej: YS2R4X20…" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Color</label>
+                <input value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} className={inputCls} placeholder="Ej: Blanco" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Año</label>
+                <input type="number" min={1950} max={2100} value={form.anio} onChange={e => setForm({ ...form, anio: e.target.value })} className={inputCls} placeholder="Ej: 2022" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Carga máxima (Kg)</label>
+                <input type="number" min={0} step="any" value={form.carga_maxima_kg} onChange={e => setForm({ ...form, carga_maxima_kg: e.target.value })} className={inputCls} placeholder="Ej: 38000" />
+              </div>
+            </div>
+
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">Asignación</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Operador logístico</label>
+                <input value={form.operador_logistico} onChange={e => setForm({ ...form, operador_logistico: e.target.value })} className={inputCls} placeholder="Ej: Transportes Andina SRL" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Conductor designado</label>
+                <select value={form.chofer_id} onChange={e => setForm({ ...form, chofer_id: e.target.value })} className={inputCls}>
+                  <option value="">Sin asignar</option>
+                  {choferes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end mt-6">
+              <button type="button" onClick={() => setModalAbierto(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300">Cancelar</button>
+              <button type="submit" disabled={guardando} className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60">
+                {guardando ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}

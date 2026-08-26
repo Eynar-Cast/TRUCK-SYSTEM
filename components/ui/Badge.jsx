@@ -19,7 +19,7 @@ const ESTILOS = {
   activo:      'bg-emerald-100 text-emerald-700',
   inactivo:    'bg-red-100 text-red-600',
   admin:       'bg-indigo-100 text-indigo-700',
-  user:        'bg-slate-100 text-slate-600',
+  user:        'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
   pagado:      'bg-emerald-100 text-emerald-700',
   pendiente:   'bg-amber-100 text-amber-700',
 };
@@ -39,7 +39,7 @@ const LABELS = {
 };
 
 export default function Badge({ tipo, label }) {
-  const estilo = ESTILOS[tipo] || 'bg-slate-100 text-slate-600';
+  const estilo = ESTILOS[tipo] || 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
   const texto = label || LABELS[tipo] || tipo;
 
   return (

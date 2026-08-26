@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-const RUTAS_ADMIN = ['/historial', '/choferes', '/gastos-choferes', '/usuarios', '/exportar', '/limpiar-datos'];
+const RUTAS_ADMIN = ['/historial', '/flota', '/seguros', '/choferes', '/reportes', '/catalogos', '/gastos-choferes', '/usuarios', '/exportar', '/limpiar-datos'];
 
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
