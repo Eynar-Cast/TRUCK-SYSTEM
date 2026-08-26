@@ -18,6 +18,8 @@ const ORDEN = {
   estado: estadoVehiculoSql('f'),
 };
 
+const PAGE_SIZE = 50;
+
 /** Estado agregado de aceites a partir del JSONB {tipo: próxima fecha}. */
 function estadoAceitesDe(porTipo) {
   if (!porTipo || typeof porTipo !== 'object') return { estado: '', detalle: {} };
@@ -42,21 +44,35 @@ export async function GET(request) {
 
   const orden = ORDEN[searchParams.get('sort')] || ORDEN.nro;
   const dir = searchParams.get('dir') === 'desc' ? 'DESC' : 'ASC';
+  const page = Math.max(1, parseInt(searchParams.get('page'), 10) || 1);
+  const limit = Math.min(100, Math.max(10, parseInt(searchParams.get('limit'), 10) || PAGE_SIZE));
+  const offset = (page - 1) * limit;
 
-  const rows = await query(
-    `SELECT f.*, ch.nombre AS conductor_designado,
-            seg.seguro_id, seg.seguro_aseguradora, seg.seguro_poliza,
-            seg.seguro_vencimiento, COALESCE(seg.estado_seguro,'') AS estado_seguro_actual,
-            llt.proxima AS llantas_proxima,
-            ac.por_tipo AS aceites_proxima
-     FROM flota f
-     ${joinSeguroActual()}
-     ${joinAlertasMantenimiento()}
-     LEFT JOIN choferes ch ON ch.id = f.chofer_id
-     ${filtro.texto}
-     ORDER BY ${orden} ${dir} NULLS LAST, f.id ASC`,
-    filtro.params
-  );
+  // Ejecutar query principal + count total EN PARALELO
+  const [rows, countResult] = await Promise.all([
+    query(
+      `SELECT f.*, ch.nombre AS conductor_designado,
+              seg.seguro_id, seg.seguro_aseguradora, seg.seguro_poliza,
+              seg.seguro_vencimiento, COALESCE(seg.estado_seguro,'') AS estado_seguro_actual,
+              llt.proxima AS llantas_proxima,
+              ac.por_tipo AS aceites_proxima
+       FROM flota f
+       ${joinSeguroActual()}
+       ${joinAlertasMantenimiento()}
+       LEFT JOIN choferes ch ON ch.id = f.chofer_id
+       ${filtro.texto}
+       ORDER BY ${orden} ${dir} NULLS LAST, f.id ASC
+       LIMIT $${filtro.params.length + 1} OFFSET $${filtro.params.length + 2}`,
+      [...filtro.params, limit, offset]
+    ),
+    query(
+      `SELECT COUNT(*)::int AS total FROM flota f ${filtro.texto}`,
+      filtro.params
+    ),
+  ]);
+
+  const totalCount = countResult[0]?.total || 0;
+  const totalPages = Math.ceil(totalCount / limit);
 
   // Estados de llantas/aceites derivados de las fechas programadas
   const vehiculos = rows.map(v => {
@@ -71,26 +87,44 @@ export async function GET(request) {
     };
   });
 
-  // Resumen global (indicadores de flota)
+  // Resumen global: COUNT optimizado — reutiliza los vehículos de la página actual
+  // y hace una query separada solo para los contadores globales
   const resumenRows = await query(`
     SELECT count(*)::int AS total,
            count(*) FILTER (WHERE ${estadoVehiculoSql('f')} = 'Disponible')::int AS disponibles,
-           count(*) FILTER (WHERE ${estadoVehiculoSql('f')} = 'Seguro Vencido')::int AS seguro_vencido,
-           count(*) FILTER (WHERE EXISTS (
-             SELECT 1 FROM seguros s WHERE s.placa = f.placa AND s.activo AND s.fecha_vencimiento IS NOT NULL
-               AND s.fecha_vencimiento >= ${HOY_BOLIVIA_SQL}
-               AND s.fecha_vencimiento < ${HOY_BOLIVIA_SQL} + interval '30 days'
-           ))::int AS por_vencer
+           count(*) FILTER (WHERE ${estadoVehiculoSql('f')} = 'Seguro Vencido')::int AS seguro_vencido
     FROM flota f`);
   const resumen = resumenRows[0];
+
+  // Para "por_vencer" usamos EXISTS pero solo contamos (más ligero que JOIN LATERAL)
+  const porVencerRows = await query(`
+    SELECT COUNT(DISTINCT f.id)::int AS por_vencer
+    FROM flota f
+    WHERE EXISTS (
+      SELECT 1 FROM seguros s
+      WHERE s.placa = f.placa AND s.activo
+        AND s.fecha_vencimiento >= ${HOY_BOLIVIA_SQL}
+        AND s.fecha_vencimiento < ${HOY_BOLIVIA_SQL} + interval '30 days'
+    )`);
+  const porVencer = porVencerRows[0]?.por_vencer || 0;
+
+  // llantas/aceites por cambiar se calculan del resumen paginado (datos ya en memoria)
+  let llantasPorCambiar = 0;
+  let aceitesPorCambiar = 0;
+  for (const v of vehiculos) {
+    if (REQUIERE_CAMBIO.includes(v.llantas_estado)) llantasPorCambiar++;
+    if (REQUIERE_CAMBIO.includes(v.aceites_estado)) aceitesPorCambiar++;
+  }
 
   return NextResponse.json({
     vehiculos,
     resumen: {
       ...resumen,
-      llantas_por_cambiar: vehiculos.filter(v => REQUIERE_CAMBIO.includes(v.llantas_estado)).length,
-      aceites_por_cambiar: vehiculos.filter(v => REQUIERE_CAMBIO.includes(v.aceites_estado)).length,
+      por_vencer: porVencer,
+      llantas_por_cambiar: llantasPorCambiar,
+      aceites_por_cambiar: aceitesPorCambiar,
     },
+    pagination: { page, limit, totalCount, totalPages },
   });
 }
 

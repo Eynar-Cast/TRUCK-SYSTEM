@@ -11,6 +11,8 @@ const ORDEN = {
   calificacion: 'c.calificacion',
 };
 
+const PAGE_SIZE = 50;
+
 /** Valida y normaliza los datos del conductor (hoja Excel "Conductores"). */
 function validarConductor(body = {}) {
   const texto = v => {
@@ -57,24 +59,41 @@ export async function GET(request) {
   const filtro = whereDe(filtrosChoferes(Object.fromEntries(searchParams.entries())));
   const orden = ORDEN[searchParams.get('sort')] || 'nombre';
   const dir = searchParams.get('dir') === 'desc' ? 'DESC' : 'ASC';
+  const page = Math.max(1, parseInt(searchParams.get('page'), 10) || 1);
+  const limit = Math.min(100, Math.max(10, parseInt(searchParams.get('limit'), 10) || PAGE_SIZE));
+  const offset = (page - 1) * limit;
 
-  // Nota: la lista incluye inactivos para poder reactivarlos (patrón del proyecto)
-  const choferes = await query(
-    `SELECT c.* FROM choferes c ${filtro.texto} ORDER BY ${orden} ${dir} NULLS LAST, c.nombre ASC`,
-    filtro.params
-  );
+  // Ejecutar query paginada + count + resumen EN PARALELO
+  const [choferes, countResult, resumenRows] = await Promise.all([
+    query(
+      `SELECT c.* FROM choferes c ${filtro.texto}
+       ORDER BY ${orden} ${dir} NULLS LAST, c.nombre ASC
+       LIMIT $${filtro.params.length + 1} OFFSET $${filtro.params.length + 2}`,
+      [...filtro.params, limit, offset]
+    ),
+    query(
+      `SELECT COUNT(*)::int AS total FROM choferes c ${filtro.texto}`,
+      filtro.params
+    ),
+    query(`
+      SELECT count(*) FILTER (WHERE activo)::int AS total_activos,
+             count(*)::int AS total,
+             count(*) FILTER (WHERE activo AND calificacion = 1)::int AS cal_1,
+             count(*) FILTER (WHERE activo AND calificacion = 2)::int AS cal_2,
+             count(*) FILTER (WHERE activo AND calificacion = 3)::int AS cal_3,
+             count(*) FILTER (WHERE activo AND calificacion = 4)::int AS cal_4,
+             count(*) FILTER (WHERE activo AND calificacion = 5)::int AS cal_5
+      FROM choferes`),
+  ]);
 
-  const resumenRows = await query(`
-    SELECT count(*) FILTER (WHERE activo)::int AS total_activos,
-           count(*)::int AS total,
-           count(*) FILTER (WHERE activo AND calificacion = 1)::int AS cal_1,
-           count(*) FILTER (WHERE activo AND calificacion = 2)::int AS cal_2,
-           count(*) FILTER (WHERE activo AND calificacion = 3)::int AS cal_3,
-           count(*) FILTER (WHERE activo AND calificacion = 4)::int AS cal_4,
-           count(*) FILTER (WHERE activo AND calificacion = 5)::int AS cal_5
-    FROM choferes`);
+  const totalCount = countResult[0]?.total || 0;
+  const totalPages = Math.ceil(totalCount / limit);
 
-  return NextResponse.json({ choferes, resumen: resumenRows[0] });
+  return NextResponse.json({
+    choferes,
+    resumen: resumenRows[0],
+    pagination: { page, limit, totalCount, totalPages },
+  });
 }
 
 export async function POST(request) {

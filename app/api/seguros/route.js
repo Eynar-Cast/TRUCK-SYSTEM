@@ -15,6 +15,8 @@ const ORDEN = {
   estado: estadoSeguroSql('s.fecha_vencimiento'),
 };
 
+const PAGE_SIZE = 50;
+
 export async function GET(request) {
   const sesion = await obtenerSesion();
   if (!sesion) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -24,26 +26,42 @@ export async function GET(request) {
 
   const orden = ORDEN[searchParams.get('sort')] || ORDEN.vencimiento;
   const dir = searchParams.get('dir') === 'desc' ? 'DESC' : 'ASC';
+  const page = Math.max(1, parseInt(searchParams.get('page'), 10) || 1);
+  const limit = Math.min(100, Math.max(10, parseInt(searchParams.get('limit'), 10) || PAGE_SIZE));
+  const offset = (page - 1) * limit;
 
-  const rows = await query(
-    `SELECT s.*, ${estadoSeguroSql('s.fecha_vencimiento')} AS estado,
-            f.id AS vehiculo_id
-     FROM seguros s
-     LEFT JOIN flota f ON f.placa = s.placa
-     ${filtro.texto}
-     ORDER BY ${orden} ${dir} NULLS LAST, s.id DESC`,
-    filtro.params
-  );
+  // Ejecutar query paginada + alertas EN PARALELO
+  const [rows, countResult, alertasRows] = await Promise.all([
+    query(
+      `SELECT s.*, ${estadoSeguroSql('s.fecha_vencimiento')} AS estado,
+              f.id AS vehiculo_id
+       FROM seguros s
+       LEFT JOIN flota f ON f.placa = s.placa
+       ${filtro.texto}
+       ORDER BY ${orden} ${dir} NULLS LAST, s.id DESC
+       LIMIT $${filtro.params.length + 1} OFFSET $${filtro.params.length + 2}`,
+      [...filtro.params, limit, offset]
+    ),
+    query(
+      `SELECT COUNT(*)::int AS total FROM seguros s ${filtro.texto}`,
+      filtro.params
+    ),
+    query(`
+      SELECT
+        count(*) FILTER (WHERE s.activo AND s.fecha_vencimiento IS NOT NULL AND s.fecha_vencimiento < ${HOY_BOLIVIA_SQL})::int AS vencidos,
+        count(*) FILTER (WHERE s.activo AND s.fecha_vencimiento IS NOT NULL AND s.fecha_vencimiento >= ${HOY_BOLIVIA_SQL}
+                          AND s.fecha_vencimiento < ${HOY_BOLIVIA_SQL} + interval '30 days')::int AS proximos
+      FROM seguros s`),
+  ]);
 
-  // Alertas globales: vencidos y próximos a vencer (30 días)
-  const alertasRows = await query(`
-    SELECT
-      count(*) FILTER (WHERE s.activo AND s.fecha_vencimiento IS NOT NULL AND s.fecha_vencimiento < ${HOY_BOLIVIA_SQL})::int AS vencidos,
-      count(*) FILTER (WHERE s.activo AND s.fecha_vencimiento IS NOT NULL AND s.fecha_vencimiento >= ${HOY_BOLIVIA_SQL}
-                        AND s.fecha_vencimiento < ${HOY_BOLIVIA_SQL} + interval '30 days')::int AS proximos
-    FROM seguros s`);
+  const totalCount = countResult[0]?.total || 0;
+  const totalPages = Math.ceil(totalCount / limit);
 
-  return NextResponse.json({ seguros: rows, alertas: alertasRows[0] });
+  return NextResponse.json({
+    seguros: rows,
+    alertas: alertasRows[0],
+    pagination: { page, limit, totalCount, totalPages },
+  });
 }
 
 export async function POST(request) {

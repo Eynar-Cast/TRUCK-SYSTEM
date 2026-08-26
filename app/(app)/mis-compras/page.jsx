@@ -1,5 +1,7 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import StatCard from '@/components/ui/StatCard';
+import SkeletonTable from '@/components/ui/SkeletonTable';
 
 const FILTROS = [
   { key: 'dia', label: 'Hoy' },
@@ -20,20 +22,12 @@ function fmtFechaHora(iso) {
     ' ' + d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
 }
 
-function StatCard({ icon, label, valor }) {
-  return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-      <div className="text-xl mb-1">{icon}</div>
-      <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{label}</div>
-      <div className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-0.5">{valor}</div>
-    </div>
-  );
-}
-
 export default function MisComprasPage() {
   const [filtro, setFiltro] = useState('dia');
   const [compras, setCompras] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, totalCount: 0, totalPages: 1 });
   const [busqueda, setBusqueda] = useState('');
+  const [page, setPage] = useState(1);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
@@ -42,28 +36,35 @@ export default function MisComprasPage() {
   const [errorDetalle, setErrorDetalle] = useState('');
   const [imagenGrande, setImagenGrande] = useState(null);
 
-  const cargarCompras = useCallback(async () => {
+  const cargarCompras = useCallback(async (signal) => {
     try {
       const params = new URLSearchParams();
       params.set('periodo', filtro);
       if (busqueda) params.set('q', busqueda);
-      const res = await fetch(`/api/compras?${params.toString()}`);
+      params.set('page', String(page));
+      params.set('limit', '50');
+      const res = await fetch(`/api/compras?${params.toString()}`, { signal });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al cargar');
       setCompras(data.compras);
+      if (data.pagination) setPagination(data.pagination);
       setError('');
     } catch (err) {
-      setError(err.message);
+      if (err.name !== 'AbortError') setError(err.message);
     }
     setCargando(false);
-  }, [filtro, busqueda]);
+  }, [filtro, busqueda, page]);
 
-  useEffect(() => { cargarCompras(); }, [cargarCompras]);
+  useEffect(() => {
+    const controller = new AbortController();
+    cargarCompras(controller.signal);
+    return () => controller.abort();
+  }, [cargarCompras]);
 
   async function verDetalle(id) {
     setErrorDetalle('');
     setCargandoDetalle(true);
-    setDetalle({ id }); // abre el modal ya en estado de carga
+    setDetalle({ id });
     try {
       const res = await fetch(`/api/compras/${id}`);
       const data = await res.json();
@@ -75,9 +76,9 @@ export default function MisComprasPage() {
     setCargandoDetalle(false);
   }
 
-  const totalGastado = compras.reduce((a, c) => a + (c.devuelto ? 0 : Number(c.precio)), 0);
-  const totalDevueltas = compras.filter(c => c.devuelto).length;
-  const totalDevuelto = compras.filter(c => c.devuelto).reduce((a, c) => a + Number(c.precio), 0);
+  const totalGastado = useMemo(() => compras.reduce((a, c) => a + (c.devuelto ? 0 : Number(c.precio)), 0), [compras]);
+  const totalDevueltas = useMemo(() => compras.filter(c => c.devuelto).length, [compras]);
+  const totalDevuelto = useMemo(() => compras.filter(c => c.devuelto).reduce((a, c) => a + Number(c.precio), 0), [compras]);
 
   return (
     <div>
@@ -90,7 +91,7 @@ export default function MisComprasPage() {
           {FILTROS.map(f => (
             <button
               key={f.key}
-              onClick={() => setFiltro(f.key)}
+              onClick={() => { setFiltro(f.key); setPage(1); }}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
                 filtro === f.key ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 dark:text-slate-300 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600'
               }`}
@@ -107,78 +108,100 @@ export default function MisComprasPage() {
         <input
           type="text"
           value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
+          onChange={e => { setBusqueda(e.target.value); setPage(1); }}
           placeholder="🔍 Buscar por nombre de producto..."
           className="w-full sm:w-72 px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 rounded-lg text-sm"
         />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <StatCard icon="📦" label="Compras" valor={compras.length} />
-        <StatCard icon="💰" label="Total gastado" valor={fmt(totalGastado)} />
-        <StatCard icon="🔄" label="Devoluciones" valor={totalDevueltas} />
-        <StatCard icon="💸" label="Total devuelto" valor={fmt(totalDevuelto)} />
+        <StatCard titulo="Compras" valor={pagination.totalCount} icono="📦" color="blue" />
+        <StatCard titulo="Total gastado" valor={fmt(totalGastado)} icono="💰" color="green" />
+        <StatCard titulo="Devoluciones" valor={totalDevueltas} icono="🔄" color="amber" />
+        <StatCard titulo="Total devuelto" valor={fmt(totalDevuelto)} icono="💸" color="red" />
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         {cargando ? (
-          <div className="p-12 text-center text-slate-400 dark:text-slate-500">Cargando...</div>
+          <SkeletonTable columns={7} rows={10} />
         ) : compras.length === 0 ? (
           <div className="p-12 text-center text-slate-400 dark:text-slate-500">
             <div className="text-4xl mb-3">📭</div>
             <p className="font-medium">No hay compras en este período</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b-2 border-slate-200 dark:border-slate-800 text-left">
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Producto</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Precio</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Factura</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Pago</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Estado</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Fecha</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {compras.map(c => (
-                  <tr key={c.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-800/50">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{c.producto}</div>
-                      {c.descripcion && <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{c.descripcion}</div>}
-                    </td>
-                    <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{fmt(c.precio)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${c.tiene_factura ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'}`}>
-                        {c.tiene_factura ? '✅ Con factura' : '❌ Sin factura'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                        {c.tipo_pago === 'qr' ? '📱 QR' : '💵 Físico'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {c.devuelto
-                        ? <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300">🔄 Devuelto</span>
-                        : <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300 dark:text-slate-400 dark:text-slate-500">Activo</span>}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">{fmtFecha(c.fecha)}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => verDetalle(c.id)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-200 text-slate-700 dark:text-slate-300 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
-                      >
-                        Ver
-                      </button>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 border-b-2 border-slate-200 dark:border-slate-800 text-left">
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Producto</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Precio</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Factura</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Pago</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Estado</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Fecha</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {compras.map(c => (
+                    <tr key={c.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-800/50">
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{c.producto}</div>
+                        {c.descripcion && <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{c.descripcion}</div>}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{fmt(c.precio)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${c.tiene_factura ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'}`}>
+                          {c.tiene_factura ? '✅ Con factura' : '❌ Sin factura'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                          {c.tipo_pago === 'qr' ? '📱 QR' : '💵 Físico'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {c.devuelto
+                          ? <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300">🔄 Devuelto</span>
+                          : <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300 dark:text-slate-400 dark:text-slate-500">Activo</span>}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">{fmtFecha(c.fecha)}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => verDetalle(c.id)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-200 text-slate-700 dark:text-slate-300 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
+                        >
+                          Ver
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Paginación */}
+            {pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400">
+                <span>
+                  Mostrando {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.totalCount)} de {pagination.totalCount}
+                </span>
+                <div className="flex gap-1">
+                  <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
+                    className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 disabled:opacity-40">
+                    ← Anterior
+                  </button>
+                  <span className="px-3 py-1 text-xs font-medium">{pagination.page} / {pagination.totalPages}</span>
+                  <button disabled={page >= pagination.totalPages} onClick={() => setPage(p => p + 1)}
+                    className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 disabled:opacity-40">
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -226,7 +249,9 @@ export default function MisComprasPage() {
                     <img
                       src={detalle.foto_factura}
                       alt="Factura"
-                      className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in"
+                      width={400}
+                      height={176}
+                      className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in object-cover"
                       onClick={() => setImagenGrande(detalle.foto_factura)}
                     />
                   </div>
@@ -237,7 +262,9 @@ export default function MisComprasPage() {
                     <img
                       src={detalle.foto_qr}
                       alt="Comprobante"
-                      className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in"
+                      width={400}
+                      height={176}
+                      className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in object-cover"
                       onClick={() => setImagenGrande(detalle.foto_qr)}
                     />
                   </div>
@@ -260,7 +287,9 @@ export default function MisComprasPage() {
                       <img
                         src={detalle.devolucion_comprobante}
                         alt="Comprobante de reembolso"
-                        className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in"
+                        width={400}
+                        height={176}
+                        className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in object-cover"
                         onClick={() => setImagenGrande(detalle.devolucion_comprobante)}
                       />
                     )}

@@ -1,5 +1,7 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import StatCard from '@/components/ui/StatCard';
+import SkeletonTable from '@/components/ui/SkeletonTable';
 
 const FILTROS = [
   { key: 'dia', label: 'Hoy' },
@@ -18,24 +20,16 @@ function fmtFechaHora(iso) {
     ' ' + d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
 }
 
-function StatCard({ icon, label, valor }) {
-  return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-      <div className="text-xl mb-1">{icon}</div>
-      <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{label}</div>
-      <div className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-0.5">{valor}</div>
-    </div>
-  );
-}
-
 export default function HistorialPage() {
   const [usuarios, setUsuarios] = useState([]);
   const [compras, setCompras] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, totalCount: 0, totalPages: 1 });
   const [filtro, setFiltro] = useState('dia');
   const [userId, setUserId] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [page, setPage] = useState(1);
   const [cargando, setCargando] = useState(true);
   const [totalCompras, setTotalCompras] = useState(0);
 
@@ -45,10 +39,15 @@ export default function HistorialPage() {
   const [imagenGrande, setImagenGrande] = useState(null);
 
   useEffect(() => {
-    fetch('/api/usuarios').then(r => r.json()).then(d => setUsuarios(d.usuarios || []));
+    const controller = new AbortController();
+    fetch('/api/usuarios', { signal: controller.signal })
+      .then(r => r.json())
+      .then(d => setUsuarios(d.usuarios || []))
+      .catch(() => {});
+    return () => controller.abort();
   }, []);
 
-  const cargarCompras = useCallback(async () => {
+  const cargarCompras = useCallback(async (signal) => {
     try {
       const params = new URLSearchParams();
       if (userId) params.set('userId', userId);
@@ -59,25 +58,35 @@ export default function HistorialPage() {
       } else {
         params.set('periodo', filtro);
       }
-      const res = await fetch(`/api/compras?${params.toString()}`);
+      params.set('page', String(page));
+      params.set('limit', '50');
+      const res = await fetch(`/api/compras?${params.toString()}`, { signal });
       const data = await res.json();
-      if (res.ok) { setCompras(data.compras); setTotalCompras(data.total); }
+      if (res.ok) {
+        setCompras(data.compras);
+        setTotalCompras(data.total);
+        if (data.pagination) setPagination(data.pagination);
+      }
     } catch {
-      // silencioso: se conservan los datos previos
+      // silencioso: se conservan los datos previos (excepto abort)
     }
     setCargando(false);
-  }, [filtro, userId, desde, hasta, busqueda]);
+  }, [filtro, userId, desde, hasta, busqueda, page]);
 
-  useEffect(() => { cargarCompras(); }, [cargarCompras]);
+  useEffect(() => {
+    const controller = new AbortController();
+    cargarCompras(controller.signal);
+    return () => controller.abort();
+  }, [cargarCompras]);
 
   function limpiarFiltros() {
-    setFiltro('todo'); setUserId(''); setDesde(''); setHasta(''); setBusqueda('');
+    setFiltro('todo'); setUserId(''); setDesde(''); setHasta(''); setBusqueda(''); setPage(1);
   }
 
   async function verDetalle(id) {
     setErrorDetalle('');
     setCargandoDetalle(true);
-    setDetalle({ id }); // abre el modal ya con estado de carga
+    setDetalle({ id });
     try {
       const res = await fetch(`/api/compras/${id}`);
       const data = await res.json();
@@ -89,12 +98,31 @@ export default function HistorialPage() {
     setCargandoDetalle(false);
   }
 
-  const totalGastado = compras.reduce((a, c) => a + (c.devuelto ? 0 : Number(c.precio)), 0);
-  const totalDev = compras.filter(c => c.devuelto).reduce((a, c) => a + Number(c.precio), 0);
+  // Mapa de usuarios para búsqueda O(1)
+  const usuariosMap = useMemo(() => {
+    const map = new Map();
+    for (const u of usuarios) map.set(u.id, u.nombre);
+    return map;
+  }, [usuarios]);
+
+  // Cálculos pesados memoizados
+  const estadisticas = useMemo(() => {
+    let totalGastado = 0;
+    let totalDev = 0;
+    let devueltas = 0;
+    for (const c of compras) {
+      if (c.devuelto) {
+        devueltas++;
+        totalDev += Number(c.precio);
+      } else {
+        totalGastado += Number(c.precio);
+      }
+    }
+    return { totalGastado, totalDev, devueltas, saldoNeto: totalGastado - totalDev };
+  }, [compras]);
 
   function nombreUsuario(id) {
-    const u = usuarios.find(x => x.id === id);
-    return u ? u.nombre : '—';
+    return usuariosMap.get(id) || '—';
   }
 
   return (
@@ -106,7 +134,7 @@ export default function HistorialPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           {FILTROS.map(f => (
-            <button key={f.key} onClick={() => { setDesde(''); setHasta(''); setFiltro(f.key); }}
+            <button key={f.key} onClick={() => { setDesde(''); setHasta(''); setFiltro(f.key); setPage(1); }}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${filtro === f.key && !desde && !hasta ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 dark:text-slate-300 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600'}`}>
               {f.label}
             </button>
@@ -123,25 +151,25 @@ export default function HistorialPage() {
           <input
             type="text"
             value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
+            onChange={e => { setBusqueda(e.target.value); setPage(1); }}
             placeholder="Buscar por nombre..."
             className="w-56 px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 rounded-lg text-sm"
           />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
-          <select value={userId} onChange={e => setUserId(e.target.value)} className="w-40 px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm">
+          <select value={userId} onChange={e => { setUserId(e.target.value); setPage(1); }} className="w-40 px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm">
             <option value="">Todos</option>
             {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Desde</label>
-          <input type="date" value={desde} onChange={e => setDesde(e.target.value)} className="w-36 px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm" />
+          <input type="date" value={desde} onChange={e => { setDesde(e.target.value); setPage(1); }} className="w-36 px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm" />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Hasta</label>
-          <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className="w-36 px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm" />
+          <input type="date" value={hasta} onChange={e => { setHasta(e.target.value); setPage(1); }} className="w-36 px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm" />
         </div>
         <button onClick={limpiarFiltros} className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-200 text-slate-700 dark:text-slate-300 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600">Limpiar</button>
       </div>
@@ -166,74 +194,96 @@ export default function HistorialPage() {
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
-        <StatCard icon="📦" label="Total compras" valor={compras.length} />
-        <StatCard icon="💰" label="Total gastado" valor={fmt(totalGastado)} />
-        <StatCard icon="🔄" label="Devoluciones" valor={compras.filter(c => c.devuelto).length} />
-        <StatCard icon="💸" label="Total devuelto" valor={fmt(totalDev)} />
-        <StatCard icon="📊" label="Saldo neto" valor={fmt(totalGastado - totalDev)} />
+        <StatCard titulo="Total compras" valor={pagination.totalCount} icono="📦" color="blue" />
+        <StatCard titulo="Total gastado" valor={fmt(estadisticas.totalGastado)} icono="💰" color="green" />
+        <StatCard titulo="Devoluciones" valor={estadisticas.devueltas} icono="🔄" color="amber" />
+        <StatCard titulo="Total devuelto" valor={fmt(estadisticas.totalDev)} icono="💸" color="red" />
+        <StatCard titulo="Saldo neto" valor={fmt(estadisticas.saldoNeto)} icono="📊" color="violet" />
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         {cargando ? (
-          <div className="p-12 text-center text-slate-400 dark:text-slate-500">Cargando...</div>
+          <SkeletonTable columns={8} rows={10} />
         ) : compras.length === 0 ? (
           <div className="p-12 text-center text-slate-400 dark:text-slate-500">
             <div className="text-4xl mb-3">📭</div>
             <p className="font-medium">No hay compras en este período</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b-2 border-slate-200 dark:border-slate-800 text-left">
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Producto</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Usuario</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Precio</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Factura</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Pago</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Estado</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Fecha</th>
-                  <th className="px-4 py-3 print:hidden"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {compras.map(c => (
-                  <tr key={c.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-800/50">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{c.producto}</div>
-                      {c.descripcion && <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{c.descripcion}</div>}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{nombreUsuario(c.user_id)}</td>
-                    <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{fmt(c.precio)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${c.tiene_factura ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'}`}>
-                        {c.tiene_factura ? '✅ Con factura' : '❌ Sin factura'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                        {c.tipo_pago === 'qr' ? '📱 QR' : '💵 Físico'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {c.devuelto
-                        ? <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300">🔄 Devuelto</span>
-                        : <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300 dark:text-slate-400 dark:text-slate-500">Activo</span>}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">{fmtFecha(c.fecha)}</td>
-                    <td className="px-4 py-3 print:hidden">
-                      <button
-                        onClick={() => verDetalle(c.id)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-200 text-slate-700 dark:text-slate-300 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
-                      >
-                        Ver
-                      </button>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 border-b-2 border-slate-200 dark:border-slate-800 text-left">
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Producto</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Usuario</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Precio</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Factura</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Pago</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Estado</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Fecha</th>
+                    <th className="px-4 py-3 print:hidden"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {compras.map(c => (
+                    <tr key={c.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-800/50">
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{c.producto}</div>
+                        {c.descripcion && <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{c.descripcion}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{nombreUsuario(c.user_id)}</td>
+                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{fmt(c.precio)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${c.tiene_factura ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'}`}>
+                          {c.tiene_factura ? '✅ Con factura' : '❌ Sin factura'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                          {c.tipo_pago === 'qr' ? '📱 QR' : '💵 Físico'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {c.devuelto
+                          ? <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300">🔄 Devuelto</span>
+                          : <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300 dark:text-slate-400 dark:text-slate-500">Activo</span>}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">{fmtFecha(c.fecha)}</td>
+                      <td className="px-4 py-3 print:hidden">
+                        <button
+                          onClick={() => verDetalle(c.id)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-200 text-slate-700 dark:text-slate-300 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
+                        >
+                          Ver
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Paginación */}
+            {pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400">
+                <span>
+                  Mostrando {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.totalCount)} de {pagination.totalCount}
+                </span>
+                <div className="flex gap-1">
+                  <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
+                    className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 disabled:opacity-40">
+                    ← Anterior
+                  </button>
+                  <span className="px-3 py-1 text-xs font-medium">{pagination.page} / {pagination.totalPages}</span>
+                  <button disabled={page >= pagination.totalPages} onClick={() => setPage(p => p + 1)}
+                    className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 disabled:opacity-40">
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -304,7 +354,9 @@ export default function HistorialPage() {
                     <img
                       src={detalle.foto_factura}
                       alt="Factura"
-                      className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in"
+                      width={400}
+                      height={176}
+                      className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in object-cover"
                       onClick={() => setImagenGrande(detalle.foto_factura)}
                     />
                   </div>
@@ -315,7 +367,9 @@ export default function HistorialPage() {
                     <img
                       src={detalle.foto_qr}
                       alt="Comprobante"
-                      className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in"
+                      width={400}
+                      height={176}
+                      className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in object-cover"
                       onClick={() => setImagenGrande(detalle.foto_qr)}
                     />
                   </div>
@@ -339,7 +393,9 @@ export default function HistorialPage() {
                       <img
                         src={detalle.devolucion_comprobante}
                         alt="Comprobante de reembolso"
-                        className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in"
+                        width={400}
+                        height={176}
+                        className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in object-cover"
                         onClick={() => setImagenGrande(detalle.devolucion_comprobante)}
                       />
                     )}

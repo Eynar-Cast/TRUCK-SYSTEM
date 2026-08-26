@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { obtenerSesion } from '@/lib/session';
 
+const PAGE_SIZE = 50;
+
 export async function GET(request) {
   const sesion = await obtenerSesion();
   if (!sesion) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -11,38 +13,61 @@ export async function GET(request) {
   const choferId = searchParams.get('choferId') || '';
   const desde = searchParams.get('desde') || '';
   const hasta = searchParams.get('hasta') || '';
+  const page = Math.max(1, parseInt(searchParams.get('page'), 10) || 1);
+  const limit = Math.min(100, Math.max(10, parseInt(searchParams.get('limit'), 10) || PAGE_SIZE));
+  const offset = (page - 1) * limit;
 
-  let sql = `
-    SELECT g.id, g.chofer_id, g.user_id, g.nombre, g.monto, g.descripcion,
-           g.tiene_factura, g.pagado, g.tipo_pago, g.fecha,
-           c.nombre AS chofer_nombre, c.placa AS chofer_placa, u.nombre AS usuario_nombre
-    FROM gastos_chofer g
-    JOIN choferes c ON c.id = g.chofer_id
-    JOIN usuarios u ON u.id = g.user_id
-    WHERE 1=1`;
+  let whereClauses = ['1=1'];
   const params = [];
 
   if (sesion.role !== 'admin') {
     params.push(sesion.id);
-    sql += ` AND g.user_id = $${params.length}`;
+    whereClauses.push(`g.user_id = $${params.length}`);
   } else if (choferId) {
     params.push(choferId);
-    sql += ` AND g.chofer_id = $${params.length}`;
+    whereClauses.push(`g.chofer_id = $${params.length}`);
   }
 
   if (desde || hasta) {
-    if (desde) { params.push(desde); sql += ` AND g.fecha >= $${params.length}::date`; }
-    if (hasta) { params.push(hasta); sql += ` AND g.fecha < ($${params.length}::date + interval '1 day')`; }
+    if (desde) { params.push(desde); whereClauses.push(`g.fecha >= $${params.length}::date`); }
+    if (hasta) { params.push(hasta); whereClauses.push(`g.fecha < ($${params.length}::date + interval '1 day')`); }
   } else {
-    if (periodo === 'dia') sql += " AND g.fecha >= date_trunc('day', now())";
-    if (periodo === 'semana') sql += " AND g.fecha >= date_trunc('week', now())";
-    if (periodo === 'mes') sql += " AND g.fecha >= date_trunc('month', now())";
+    if (periodo === 'dia') whereClauses.push("g.fecha >= date_trunc('day', now())");
+    if (periodo === 'semana') whereClauses.push("g.fecha >= date_trunc('week', now())");
+    if (periodo === 'mes') whereClauses.push("g.fecha >= date_trunc('month', now())");
   }
 
-  sql += ' ORDER BY g.fecha DESC';
+  const whereSQL = whereClauses.join(' AND ');
 
-  const gastos = await query(sql, params);
-  return NextResponse.json({ gastos });
+  // Ejecutar query paginada + COUNT EN PARALELO
+  const [gastos, countResult] = await Promise.all([
+    query(
+      `SELECT g.id, g.chofer_id, g.user_id, g.nombre, g.monto, g.descripcion,
+             g.tiene_factura, g.pagado, g.tipo_pago, g.fecha,
+             c.nombre AS chofer_nombre, c.placa AS chofer_placa, u.nombre AS usuario_nombre
+      FROM gastos_chofer g
+      JOIN choferes c ON c.id = g.chofer_id
+      JOIN usuarios u ON u.id = g.user_id
+      WHERE ${whereSQL}
+      ORDER BY g.fecha DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    ),
+    query(
+      `SELECT COUNT(*)::int AS total
+       FROM gastos_chofer g
+       WHERE ${whereSQL}`,
+      params
+    ),
+  ]);
+
+  const totalCount = countResult[0]?.total || 0;
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return NextResponse.json({
+    gastos,
+    pagination: { page, limit, totalCount, totalPages },
+  });
 }
 
 export async function POST(request) {

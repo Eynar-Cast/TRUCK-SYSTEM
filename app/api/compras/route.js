@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { obtenerSesion } from '@/lib/session';
 
+const PAGE_SIZE = 50;
+
 export async function GET(request) {
   const sesion = await obtenerSesion();
   if (!sesion) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -12,49 +14,61 @@ export async function GET(request) {
   const desde = searchParams.get('desde') || '';
   const hasta = searchParams.get('hasta') || '';
   const q = searchParams.get('q') || '';
+  const page = Math.max(1, parseInt(searchParams.get('page'), 10) || 1);
+  const limit = Math.min(100, Math.max(10, parseInt(searchParams.get('limit'), 10) || PAGE_SIZE));
+  const offset = (page - 1) * limit;
 
   // No se devuelven foto_factura/foto_qr en el listado: son data URLs de hasta 5MB
-  // que no se usan en las tablas (solo el detalle las necesita).
-  let sql = `SELECT id, user_id, producto, precio, descripcion, tiene_factura, tipo_pago, devuelto, fecha
-             FROM compras WHERE 1=1`;
+  let whereClauses = ['1=1'];
   const params = [];
 
   if (sesion.role !== 'admin') {
     params.push(sesion.id);
-    sql += ` AND user_id = $${params.length}`;
+    whereClauses.push(`user_id = $${params.length}`);
   } else if (userId) {
     params.push(userId);
-    sql += ` AND user_id = $${params.length}`;
+    whereClauses.push(`user_id = $${params.length}`);
   }
 
   if (q) {
     params.push(`%${q}%`);
-    sql += ` AND (producto ILIKE $${params.length} OR descripcion ILIKE $${params.length})`;
+    whereClauses.push(`(producto ILIKE $${params.length} OR descripcion ILIKE $${params.length})`);
   }
 
   if (desde || hasta) {
-    if (desde) { params.push(desde); sql += ` AND fecha >= $${params.length}::date`; }
-    if (hasta) { params.push(hasta); sql += ` AND fecha < ($${params.length}::date + interval '1 day')`; }
+    if (desde) { params.push(desde); whereClauses.push(`fecha >= $${params.length}::date`); }
+    if (hasta) { params.push(hasta); whereClauses.push(`fecha < ($${params.length}::date + interval '1 day')`); }
   } else {
-    if (periodo === 'dia') sql += " AND fecha >= date_trunc('day', now())";
-    if (periodo === 'semana') sql += " AND fecha >= date_trunc('week', now())";
-    if (periodo === 'mes') sql += " AND fecha >= date_trunc('month', now())";
+    if (periodo === 'dia') whereClauses.push("fecha >= date_trunc('day', now())");
+    if (periodo === 'semana') whereClauses.push("fecha >= date_trunc('week', now())");
+    if (periodo === 'mes') whereClauses.push("fecha >= date_trunc('month', now())");
   }
 
-  sql += ' ORDER BY fecha DESC';
+  const whereSQL = whereClauses.join(' AND ');
 
-  const compras = await query(sql, params);
+  // Ejecutar query paginada + COUNT total EN PARALELO
+  const [compras, countResult] = await Promise.all([
+    query(
+      `SELECT id, user_id, producto, precio, descripcion, tiene_factura, tipo_pago, devuelto, fecha
+       FROM compras WHERE ${whereSQL}
+       ORDER BY fecha DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    ),
+    query(
+      `SELECT COUNT(*)::int AS total FROM compras WHERE ${whereSQL}`,
+      params
+    ),
+  ]);
 
-  // Total de compras (ignora filtros de fecha/producto) para el aviso de limpieza.
-  let totalSql = `SELECT COUNT(*)::int AS total FROM compras WHERE 1=1`;
-  const totalParams = [];
-  if (sesion.role !== 'admin') {
-    totalParams.push(sesion.id);
-    totalSql += ` AND user_id = $${totalParams.length}`;
-  }
-  const [totalRow] = await query(totalSql, totalParams);
+  const totalCount = countResult[0]?.total || 0;
+  const totalPages = Math.ceil(totalCount / limit);
 
-  return NextResponse.json({ compras, total: totalRow?.total || 0 });
+  return NextResponse.json({
+    compras,
+    total: totalCount,
+    pagination: { page, limit, totalCount, totalPages },
+  });
 }
 
 export async function POST(request) {

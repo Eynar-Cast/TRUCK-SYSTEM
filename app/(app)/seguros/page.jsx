@@ -1,8 +1,9 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import StatCard from '@/components/ui/StatCard';
+import SkeletonTable from '@/components/ui/SkeletonTable';
 import { descargar, fmtFechaISO } from '@/lib/utils';
 
 /**
@@ -18,11 +19,47 @@ const ESTADO_ESTILO = {
 
 const VACIO = { placa: '', aseguradora: '', poliza: '', fecha_inicio: '', fecha_vencimiento: '', importe_pagado: '', fecha_pago: '' };
 
+// Componente de fila de tabla memorizado
+const FilaSeguro = ({ s, i, sort, dir, ordenarPor, abrirEditar, toggleActivo }) => (
+  <tr className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <td className="px-3 py-2.5 text-slate-400">{i + 1}</td>
+    <td className="px-3 py-2.5">
+      <span className={`font-mono text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${s.activo ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'}`}>
+        {s.placa}{!s.activo && ' · Inactivo'}
+      </span>
+    </td>
+    <td className="px-3 py-2.5 font-medium text-slate-700 dark:text-slate-300">{s.aseguradora}</td>
+    <td className="px-3 py-2.5 font-mono text-xs text-slate-700 dark:text-slate-300">{s.poliza}</td>
+    <td className="px-3 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300">{fmtFechaISO(s.fecha_inicio)}</td>
+    <td className="px-3 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300">{fmtFechaISO(s.fecha_vencimiento)}</td>
+    <td className="px-3 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300">{s.importe_pagado != null ? `Bs. ${Number(s.importe_pagado).toLocaleString('es-BO')}` : '—'}</td>
+    <td className="px-3 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300">{fmtFechaISO(s.fecha_pago)}</td>
+    <td className="px-3 py-2.5">
+      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${ESTADO_ESTILO[s.estado] || 'bg-slate-100 text-slate-400'}`}>
+        {s.estado || 'Sin fecha'}
+      </span>
+    </td>
+    <td className="px-3 py-2.5 no-print">
+      <div className="flex gap-1.5 whitespace-nowrap">
+        <button onClick={() => abrirEditar(s)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300">✏️ Editar</button>
+        {s.vehiculo_id && (
+          <Link href={`/flota/${s.vehiculo_id}`} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200">🚚 Ver vehículo</Link>
+        )}
+        <button onClick={() => toggleActivo(s)}
+          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium ${s.activo ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-200'}`}>
+          {s.activo ? 'Desactivar' : 'Activar'}
+        </button>
+      </div>
+    </td>
+  </tr>
+);
+
 function SegurosContenido() {
   const searchParams = useSearchParams();
 
   const [seguros, setSeguros] = useState([]);
   const [alertas, setAlertas] = useState({ vencidos: 0, proximos: 0 });
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, totalCount: 0, totalPages: 1 });
   const [vehiculos, setVehiculos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -35,6 +72,7 @@ function SegurosContenido() {
   const [vencHasta, setVencHasta] = useState('');
   const [sort, setSort] = useState('vencimiento');
   const [dir, setDir] = useState('asc');
+  const [page, setPage] = useState(1);
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [editando, setEditando] = useState(null);
@@ -66,36 +104,45 @@ function SegurosContenido() {
     if (vencHasta) p.set('venc_hasta', vencHasta);
     p.set('sort', sort);
     p.set('dir', dir);
+    p.set('page', String(page));
+    p.set('limit', '50');
     return p;
-  }, [q, fEstado, inicioDesde, inicioHasta, vencDesde, vencHasta, sort, dir]);
+  }, [q, fEstado, inicioDesde, inicioHasta, vencDesde, vencHasta, sort, dir, page]);
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (signal) => {
     try {
-      const res = await fetch(`/api/seguros?${params().toString()}`);
+      const res = await fetch(`/api/seguros?${params().toString()}`, { signal });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setSeguros(data.seguros);
       setAlertas(data.alertas);
+      if (data.pagination) setPagination(data.pagination);
       setError('');
     } catch {
-      setError('No se pudo cargar el reporte de seguros');
+      if (!signal?.aborted) setError('No se pudo cargar el reporte de seguros');
     }
     setCargando(false);
   }, [params]);
 
-  useEffect(() => { const t = setTimeout(cargar, 250); return () => clearTimeout(t); }, [cargar]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const t = setTimeout(() => cargar(controller.signal), 250);
+    return () => { clearTimeout(t); controller.abort(); };
+  }, [cargar]);
 
   useEffect(() => {
-    // Placas válidas para asociar pólizas (validación tipo lista desplegable del Excel)
-    fetch('/api/flota')
+    const controller = new AbortController();
+    fetch('/api/flota?limit=200', { signal: controller.signal })
       .then(r => r.json())
       .then(data => setVehiculos((data.vehiculos || []).map(v => ({ placa: v.placa, activo: v.activo }))))
       .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   function ordenarPor(col) {
     if (sort === col) setDir(d => (d === 'asc' ? 'desc' : 'asc'));
     else { setSort(col); setDir('asc'); }
+    setPage(1);
   }
 
   function abrirNuevo() {
@@ -195,7 +242,7 @@ function SegurosContenido() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         <StatCard titulo="Pólizas vencidas" valor={alertas.vencidos} icono="⚠️" color="red" />
         <StatCard titulo="Por vencer (30 días)" valor={alertas.proximos} icono="📅" color="amber" />
-        <StatCard titulo="Pólizas listadas" valor={seguros.length} icono="🛡️" color="blue" />
+        <StatCard titulo="Pólizas listadas" valor={pagination.totalCount} icono="🛡️" color="blue" />
       </div>
 
       {error && <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-sm no-print">{error}</div>}
@@ -203,16 +250,16 @@ function SegurosContenido() {
       {/* Filtros */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 mb-4 no-print">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar: placa, aseguradora, póliza…" className={`${inputCls} col-span-2`} />
-          <select value={fEstado} onChange={e => setFEstado(e.target.value)} className={inputCls}>
+          <input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Buscar: placa, aseguradora, póliza…" className={`${inputCls} col-span-2`} />
+          <select value={fEstado} onChange={e => { setFEstado(e.target.value); setPage(1); }} className={inputCls}>
             <option value="">Estado: todos</option>
             <option value="Vigente">Vigente</option>
             <option value="Vencido">Vencido</option>
           </select>
-          <input type="date" value={vencDesde} onChange={e => setVencDesde(e.target.value)} title="Vencimiento desde" className={inputCls} />
-          <input type="date" value={vencHasta} onChange={e => setVencHasta(e.target.value)} title="Vencimiento hasta" className={inputCls} />
-          <input type="date" value={inicioDesde} onChange={e => setInicioDesde(e.target.value)} title="Inicio desde" className={inputCls} />
-          <input type="date" value={inicioHasta} onChange={e => setInicioHasta(e.target.value)} title="Inicio hasta" className={inputCls} />
+          <input type="date" value={vencDesde} onChange={e => { setVencDesde(e.target.value); setPage(1); }} title="Vencimiento desde" className={inputCls} />
+          <input type="date" value={vencHasta} onChange={e => { setVencHasta(e.target.value); setPage(1); }} title="Vencimiento hasta" className={inputCls} />
+          <input type="date" value={inicioDesde} onChange={e => { setInicioDesde(e.target.value); setPage(1); }} title="Inicio desde" className={inputCls} />
+          <input type="date" value={inicioHasta} onChange={e => { setInicioHasta(e.target.value); setPage(1); }} title="Inicio hasta" className={inputCls} />
         </div>
         <div className="mt-2 text-[11px] text-slate-400">Los dos primeros campos de fecha filtran por vencimiento; los otros dos, por fecha de inicio.</div>
       </div>
@@ -220,65 +267,57 @@ function SegurosContenido() {
       {/* Tabla / reporte */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         {cargando ? (
-          <div className="p-12 text-center text-slate-400 dark:text-slate-500">Cargando...</div>
+          <SkeletonTable columns={10} rows={10} />
         ) : seguros.length === 0 ? (
           <div className="p-12 text-center text-slate-400 dark:text-slate-500">
             <div className="text-4xl mb-3">🛡️</div>
             <p className="font-medium">No hay seguros que coincidan con la búsqueda</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b-2 border-slate-200 dark:border-slate-800 text-left whitespace-nowrap">
-                  {[['nro', 'Nro'], ['placa', 'Placa'], ['aseguradora', 'Aseguradora'], ['poliza', 'Póliza'],
-                    ['inicio', 'Fecha de inicio'], ['vencimiento', 'Vencimiento'], ['importe', 'Importe pagado'],
-                    ['pago', 'Fecha de pago'], ['estado', 'Estado']].map(([key, label]) => (
-                    <th key={key} onClick={() => ordenarPor(key)}
-                      className="px-3 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:text-slate-700 dark:hover:text-slate-200">
-                      {label}{sort === key && (dir === 'asc' ? ' ▲' : ' ▼')}
-                    </th>
-                  ))}
-                  <th className="px-3 py-3 no-print"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {seguros.map((s, i) => (
-                  <tr key={s.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <td className="px-3 py-2.5 text-slate-400">{i + 1}</td>
-                    <td className="px-3 py-2.5">
-                      <span className={`font-mono text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${s.activo ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'}`}>
-                        {s.placa}{!s.activo && ' · Inactivo'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 font-medium text-slate-700 dark:text-slate-300">{s.aseguradora}</td>
-                    <td className="px-3 py-2.5 font-mono text-xs text-slate-700 dark:text-slate-300">{s.poliza}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300">{fmtFechaISO(s.fecha_inicio)}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300">{fmtFechaISO(s.fecha_vencimiento)}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300">{s.importe_pagado != null ? `Bs. ${Number(s.importe_pagado).toLocaleString('es-BO')}` : '—'}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300">{fmtFechaISO(s.fecha_pago)}</td>
-                    <td className="px-3 py-2.5">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${ESTADO_ESTILO[s.estado] || 'bg-slate-100 text-slate-400'}`}>
-                        {s.estado || 'Sin fecha'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 no-print">
-                      <div className="flex gap-1.5 whitespace-nowrap">
-                        <button onClick={() => abrirEditar(s)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300">✏️ Editar</button>
-                        {s.vehiculo_id && (
-                          <Link href={`/flota/${s.vehiculo_id}`} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200">🚚 Ver vehículo</Link>
-                        )}
-                        <button onClick={() => toggleActivo(s)}
-                          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium ${s.activo ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-200'}`}>
-                          {s.activo ? 'Desactivar' : 'Activar'}
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 border-b-2 border-slate-200 dark:border-slate-800 text-left whitespace-nowrap">
+                    {[['nro', 'Nro'], ['placa', 'Placa'], ['aseguradora', 'Aseguradora'], ['poliza', 'Póliza'],
+                      ['inicio', 'Fecha de inicio'], ['vencimiento', 'Vencimiento'], ['importe', 'Importe pagado'],
+                      ['pago', 'Fecha de pago'], ['estado', 'Estado']].map(([key, label]) => (
+                      <th key={key} onClick={() => ordenarPor(key)}
+                        className="px-3 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:text-slate-700 dark:hover:text-slate-200">
+                        {label}{sort === key && (dir === 'asc' ? ' ▲' : ' ▼')}
+                      </th>
+                    ))}
+                    <th className="px-3 py-3 no-print"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {seguros.map((s, i) => (
+                    <FilaSeguro key={s.id} s={s} i={(pagination.page - 1) * pagination.limit + i} sort={sort} dir={dir} ordenarPor={ordenarPor} abrirEditar={abrirEditar} toggleActivo={toggleActivo} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Paginación */}
+            {pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400">
+                <span>
+                  Mostrando {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.totalCount)} de {pagination.totalCount}
+                </span>
+                <div className="flex gap-1">
+                  <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
+                    className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 disabled:opacity-40">
+                    ← Anterior
+                  </button>
+                  <span className="px-3 py-1 text-xs font-medium">{pagination.page} / {pagination.totalPages}</span>
+                  <button disabled={page >= pagination.totalPages} onClick={() => setPage(p => p + 1)}
+                    className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 disabled:opacity-40">
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

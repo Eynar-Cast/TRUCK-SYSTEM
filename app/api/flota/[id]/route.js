@@ -13,6 +13,7 @@ export async function GET(request, { params }) {
   const { id } = await params;
   if (!esID(id)) return NextResponse.json({ error: 'Vehículo no encontrado' }, { status: 404 });
 
+  // Primero obtener el vehículo para tener la placa
   const rows = await query(
     `SELECT f.*, ch.nombre AS conductor_designado,
             COALESCE(seg.estado_seguro,'') AS estado_seguro_actual
@@ -32,35 +33,31 @@ export async function GET(request, { params }) {
     estado_vehiculo: rows[0].estado_seguro_actual === 'Vencido' ? 'Seguro Vencido' : 'Disponible',
   };
 
-  // Historial de pólizas del vehículo asociadas POR PLACA (estado derivado)
-  const seguros = await query(
-    `SELECT s.*, ${estadoSeguroSql('s.fecha_vencimiento')} AS estado
-     FROM seguros s WHERE s.placa = $1
-     ORDER BY s.creado DESC, s.id DESC`,
-    [vehiculo.placa]
-  );
-
-  // Control de llantas (historial, el más reciente primero)
-  const llantas = await query(
-    'SELECT * FROM llantas WHERE flota_id = $1 ORDER BY creado DESC, id DESC',
-    [id]
-  );
-
-  // Control de aceites: historial por tipo
-  const aceites = await query(
-    `SELECT * FROM aceites WHERE flota_id = $1
-     ORDER BY CASE tipo WHEN 'motor' THEN 1 WHEN 'caja' THEN 2 ELSE 3 END,
-              fecha_ultimo_cambio DESC NULLS LAST, id DESC`,
-    [id]
-  );
-
-  // Seguros de carga (historial con estado derivado)
-  const segurosCarga = await query(
-    `SELECT sc.*, ${estadoSeguroSql('sc.fecha_expiracion')} AS estado
-     FROM seguros_carga sc WHERE sc.flota_id = $1
-     ORDER BY sc.creado DESC, sc.id DESC`,
-    [id]
-  );
+  // Ejecutar las 4 queries secundarias EN PARALELO (antes eran secuenciales = 4 round-trips)
+  const [seguros, llantas, aceites, segurosCarga] = await Promise.all([
+    query(
+      `SELECT s.*, ${estadoSeguroSql('s.fecha_vencimiento')} AS estado
+       FROM seguros s WHERE s.placa = $1
+       ORDER BY s.creado DESC, s.id DESC`,
+      [vehiculo.placa]
+    ),
+    query(
+      'SELECT * FROM llantas WHERE flota_id = $1 ORDER BY creado DESC, id DESC',
+      [id]
+    ),
+    query(
+      `SELECT * FROM aceites WHERE flota_id = $1
+       ORDER BY CASE tipo WHEN 'motor' THEN 1 WHEN 'caja' THEN 2 ELSE 3 END,
+                fecha_ultimo_cambio DESC NULLS LAST, id DESC`,
+      [id]
+    ),
+    query(
+      `SELECT sc.*, ${estadoSeguroSql('sc.fecha_expiracion')} AS estado
+       FROM seguros_carga sc WHERE sc.flota_id = $1
+       ORDER BY sc.creado DESC, sc.id DESC`,
+      [id]
+    ),
+  ]);
 
   return NextResponse.json({
     vehiculo,
@@ -113,7 +110,6 @@ export async function PUT(request, { params }) {
       [d.tipo, d.marca, d.modelo, d.placa, d.numero_serie, d.color, d.anio, d.carga_maxima_kg,
        d.operador_logistico, d.chofer_id, id]
     );
-    // Al cambiar la placa, los seguros la siguen automáticamente (ON UPDATE CASCADE)
     return NextResponse.json({ vehiculo: rows[0] });
   } catch (err) {
     if (err.code === '23503') {

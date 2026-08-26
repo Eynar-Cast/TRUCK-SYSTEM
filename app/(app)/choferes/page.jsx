@@ -1,8 +1,9 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import StatCard from '@/components/ui/StatCard';
 import Calificacion from '@/components/ui/Calificacion';
+import SkeletonTable from '@/components/ui/SkeletonTable';
 import { descargar, fmtFechaISO } from '@/lib/utils';
 
 /**
@@ -22,11 +23,13 @@ function ChoferesContenido() {
 
   const [choferes, setChoferes] = useState([]);
   const [resumen, setResumen] = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, totalCount: 0, totalPages: 1 });
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
   const [q, setQ] = useState('');
   const [fCalif, setFCalif] = useState('');
+  const [page, setPage] = useState(1);
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [editando, setEditando] = useState(null);
@@ -36,30 +39,41 @@ function ChoferesContenido() {
   const [avisoDetalle, setAvisoDetalle] = useState('');
 
   // Detalle (referencias + seguro individual + multas + documentación)
-  const [detalle, setDetalle] = useState(null);       // { chofer, referencias, seguros_individuales, multas, documentos }
+  const [detalle, setDetalle] = useState(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [nuevaRef, setNuevaRef] = useState({ nombre: '', parentesco: '', telefono: '' });
   const [nuevoSeg, setNuevoSeg] = useState({ fecha_inicio: '', fecha_expiracion: '' });
   const [nuevaMulta, setNuevaMulta] = useState({ fecha: '', motivo: '', monto: '', observaciones: '' });
 
-  const cargar = useCallback(async () => {
+  const params = useCallback(() => {
+    const p = new URLSearchParams();
+    if (q) p.set('q', q);
+    if (fCalif) p.set('calificacion', fCalif);
+    p.set('page', String(page));
+    p.set('limit', '50');
+    return p;
+  }, [q, fCalif, page]);
+
+  const cargar = useCallback(async (signal) => {
     try {
-      const p = new URLSearchParams();
-      if (q) p.set('q', q);
-      if (fCalif) p.set('calificacion', fCalif);
-      const res = await fetch(`/api/choferes?${p.toString()}`);
+      const res = await fetch(`/api/choferes?${params().toString()}`, { signal });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setChoferes(data.choferes);
       setResumen(data.resumen);
+      if (data.pagination) setPagination(data.pagination);
       setError('');
     } catch {
-      setError('No se pudo cargar la lista de conductores');
+      if (!signal?.aborted) setError('No se pudo cargar la lista de conductores');
     }
     setCargando(false);
-  }, [q, fCalif]);
+  }, [params]);
 
-  useEffect(() => { const t = setTimeout(cargar, 250); return () => clearTimeout(t); }, [cargar]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const t = setTimeout(() => cargar(controller.signal), 250);
+    return () => { clearTimeout(t); controller.abort(); };
+  }, [cargar]);
 
   async function abrirDetalle(chofer) {
     setCargandoDetalle(true);
@@ -292,8 +306,8 @@ function ChoferesContenido() {
       {/* Filtros */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 mb-4 no-print">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar: nombre, documento o licencia…" className={inputCls} />
-          <select value={fCalif} onChange={e => setFCalif(e.target.value)} className={inputCls}>
+          <input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Buscar: nombre, documento o licencia…" className={inputCls} />
+          <select value={fCalif} onChange={e => { setFCalif(e.target.value); setPage(1); }} className={inputCls}>
             <option value="">Calificación: todas</option>
             {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{'★'.repeat(n)}</option>)}
           </select>
@@ -303,62 +317,84 @@ function ChoferesContenido() {
       {/* Tabla / reporte */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         {cargando ? (
-          <div className="p-12 text-center text-slate-400 dark:text-slate-500">Cargando...</div>
+          <SkeletonTable columns={9} rows={10} />
         ) : choferes.length === 0 ? (
           <div className="p-12 text-center text-slate-400 dark:text-slate-500">
             <div className="text-4xl mb-3">👨‍✈️</div>
             <p className="font-medium">No hay conductores que coincidan con la búsqueda</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b-2 border-slate-200 dark:border-slate-800 text-left whitespace-nowrap">
-                  {['Nro', 'Documento', 'Nombre completo', 'Licencia', 'Dirección', 'Teléfono/Celular', 'Calificación', 'Estado'].map(h => (
-                    <th key={h} className="px-3 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">{h}</th>
-                  ))}
-                  <th className="px-3 py-3 no-print"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {choferes.map((c, i) => (
-                  <tr key={c.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <td className="px-3 py-2.5 text-slate-400">{i + 1}</td>
-                    <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300">{c.documento || '—'}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 shrink-0 rounded-full bg-violet-100 dark:bg-violet-950/40 flex items-center justify-center font-bold text-violet-700 dark:text-violet-300 text-sm">
-                          {c.nombre.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                          {c.nombre}{!c.activo && <span className="ml-1.5 text-[10px] bg-red-100 text-red-500 px-1.5 py-0.5 rounded-full align-middle">Inactivo</span>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5">{c.licencia || '—'}</td>
-                    <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400 max-w-[220px] truncate" title={c.direccion || ''}>{c.direccion || '—'}</td>
-                    <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{c.telefono || '—'}</td>
-                    <td className="px-3 py-2.5"><Calificacion valor={c.calificacion} /></td>
-                    <td className="px-3 py-2.5">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${c.activo ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'}`}>
-                        {c.activo ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 no-print">
-                      <div className="flex gap-1.5 whitespace-nowrap">
-                        <button onClick={() => abrirDetalle(c)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200">🔍 Detalle</button>
-                        <button onClick={() => abrirEditar(c)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300">✏️ Editar</button>
-                        <button onClick={() => toggleChofer(c)}
-                          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium ${c.activo ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-200'}`}>
-                          {c.activo ? 'Desactivar' : 'Activar'}
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 border-b-2 border-slate-200 dark:border-slate-800 text-left whitespace-nowrap">
+                    {['Nro', 'Documento', 'Nombre completo', 'Licencia', 'Dirección', 'Teléfono/Celular', 'Calificación', 'Estado'].map(h => (
+                      <th key={h} className="px-3 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">{h}</th>
+                    ))}
+                    <th className="px-3 py-3 no-print"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {choferes.map((c, i) => (
+                    <tr key={c.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="px-3 py-2.5 text-slate-400">{(pagination.page - 1) * pagination.limit + i + 1}</td>
+                      <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300">{c.documento || '—'}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 shrink-0 rounded-full bg-violet-100 dark:bg-violet-950/40 flex items-center justify-center font-bold text-violet-700 dark:text-violet-300 text-sm">
+                            {c.nombre.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                            {c.nombre}{!c.activo && <span className="ml-1.5 text-[10px] bg-red-100 text-red-500 px-1.5 py-0.5 rounded-full align-middle">Inactivo</span>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">{c.licencia || '—'}</td>
+                      <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400 max-w-[220px] truncate" title={c.direccion || ''}>{c.direccion || '—'}</td>
+                      <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{c.telefono || '—'}</td>
+                      <td className="px-3 py-2.5"><Calificacion valor={c.calificacion} /></td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${c.activo ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'}`}>
+                          {c.activo ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 no-print">
+                        <div className="flex gap-1.5 whitespace-nowrap">
+                          <button onClick={() => abrirDetalle(c)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200">🔍 Detalle</button>
+                          <button onClick={() => abrirEditar(c)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300">✏️ Editar</button>
+                          <button onClick={() => toggleChofer(c)}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium ${c.activo ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-200'}`}>
+                            {c.activo ? 'Desactivar' : 'Activar'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Paginación */}
+            {pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400">
+                <span>
+                  Mostrando {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.totalCount)} de {pagination.totalCount}
+                </span>
+                <div className="flex gap-1">
+                  <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
+                    className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 disabled:opacity-40">
+                    ← Anterior
+                  </button>
+                  <span className="px-3 py-1 text-xs font-medium">{pagination.page} / {pagination.totalPages}</span>
+                  <button disabled={page >= pagination.totalPages} onClick={() => setPage(p => p + 1)}
+                    className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 disabled:opacity-40">
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

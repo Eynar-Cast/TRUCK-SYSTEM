@@ -15,30 +15,31 @@ export async function GET(request, { params }) {
   const choferes = await query('SELECT * FROM choferes WHERE id = $1', [id]);
   if (choferes.length === 0) return NextResponse.json({ error: 'Conductor no encontrado' }, { status: 404 });
 
-  const referencias = await query(
-    'SELECT * FROM conductor_referencias WHERE chofer_id = $1 ORDER BY creado ASC, id ASC',
-    [id]
-  );
-  const segurosIndividuales = await query(
-    `SELECT cs.*, ${estadoSeguroSql('cs.fecha_expiracion')} AS estado
-     FROM conductor_seguros cs WHERE cs.chofer_id = $1
-     ORDER BY cs.creado DESC, cs.id DESC`,
-    [id]
-  );
-
-  // Multas del conductor (historial)
-  const multas = await query(
-    `SELECT m.*, COALESCE(m.monto, 0)::float8 AS monto_num
-     FROM multas m WHERE m.chofer_id = $1
-     ORDER BY m.fecha DESC, m.id DESC`,
-    [id]
-  );
-
-  // Documentación: fotocopia de luz, agua, croquis y adjuntos
-  const documentos = await query(
-    'SELECT * FROM conductor_documentos WHERE chofer_id = $1 ORDER BY creado ASC, id ASC',
-    [id]
-  );
+  // Ejecutar queries secundarias en paralelo
+  const [referencias, segurosIndividuales, multas, documentos] = await Promise.all([
+    query(
+      'SELECT * FROM conductor_referencias WHERE chofer_id = $1 ORDER BY creado ASC, id ASC',
+      [id]
+    ),
+    query(
+      `SELECT cs.*, ${estadoSeguroSql('cs.fecha_expiracion')} AS estado
+       FROM conductor_seguros cs WHERE cs.chofer_id = $1
+       ORDER BY cs.creado DESC, cs.id DESC`,
+      [id]
+    ),
+    // Multas del conductor (historial)
+    query(
+      `SELECT m.*, COALESCE(m.monto, 0)::float8 AS monto_num
+       FROM multas m WHERE m.chofer_id = $1
+       ORDER BY m.fecha DESC, m.id DESC`,
+      [id]
+    ),
+    // Documentación: fotocopia de luz, agua, croquis y adjuntos
+    query(
+      'SELECT * FROM conductor_documentos WHERE chofer_id = $1 ORDER BY creado ASC, id ASC',
+      [id]
+    ),
+  ]);
 
   return NextResponse.json({ chofer: choferes[0], referencias, seguros_individuales: segurosIndividuales, multas, documentos });
 }

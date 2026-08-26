@@ -1,5 +1,7 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import StatCard from '@/components/ui/StatCard';
+import SkeletonTable from '@/components/ui/SkeletonTable';
 
 const FILTROS = [
   { key: 'dia', label: 'Hoy' },
@@ -20,19 +22,11 @@ function fmtFechaHora(iso) {
     ' ' + d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
 }
 
-function StatCard({ icon, label, valor }) {
-  return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-      <div className="text-xl mb-1">{icon}</div>
-      <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{label}</div>
-      <div className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-0.5">{valor}</div>
-    </div>
-  );
-}
-
 export default function MisGastosPage() {
   const [filtro, setFiltro] = useState('dia');
   const [gastos, setGastos] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, totalCount: 0, totalPages: 1 });
+  const [page, setPage] = useState(1);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
@@ -41,25 +35,34 @@ export default function MisGastosPage() {
   const [errorDetalle, setErrorDetalle] = useState('');
   const [imagenGrande, setImagenGrande] = useState(null);
 
-  const cargarGastos = useCallback(async () => {
+  const cargarGastos = useCallback(async (signal) => {
     try {
-      const res = await fetch(`/api/gastos-choferes?periodo=${filtro}`);
+      const params = new URLSearchParams();
+      params.set('periodo', filtro);
+      params.set('page', String(page));
+      params.set('limit', '50');
+      const res = await fetch(`/api/gastos-choferes?${params.toString()}`, { signal });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al cargar');
       setGastos(data.gastos);
+      if (data.pagination) setPagination(data.pagination);
       setError('');
     } catch (err) {
-      setError(err.message);
+      if (err.name !== 'AbortError') setError(err.message);
     }
     setCargando(false);
-  }, [filtro]);
+  }, [filtro, page]);
 
-  useEffect(() => { cargarGastos(); }, [cargarGastos]);
+  useEffect(() => {
+    const controller = new AbortController();
+    cargarGastos(controller.signal);
+    return () => controller.abort();
+  }, [cargarGastos]);
 
   async function verDetalle(id) {
     setErrorDetalle('');
     setCargandoDetalle(true);
-    setDetalle({ id }); // abre el modal ya en estado de carga
+    setDetalle({ id });
     try {
       const res = await fetch(`/api/gastos-choferes/${id}`);
       const data = await res.json();
@@ -71,8 +74,8 @@ export default function MisGastosPage() {
     setCargandoDetalle(false);
   }
 
-  const total = gastos.reduce((a, g) => a + Number(g.monto), 0);
-  const pagados = gastos.filter(g => g.pagado).reduce((a, g) => a + Number(g.monto), 0);
+  const total = useMemo(() => gastos.reduce((a, g) => a + Number(g.monto), 0), [gastos]);
+  const pagados = useMemo(() => gastos.filter(g => g.pagado).reduce((a, g) => a + Number(g.monto), 0), [gastos]);
 
   return (
     <div>
@@ -85,7 +88,7 @@ export default function MisGastosPage() {
           {FILTROS.map(f => (
             <button
               key={f.key}
-              onClick={() => setFiltro(f.key)}
+              onClick={() => { setFiltro(f.key); setPage(1); }}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
                 filtro === f.key ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600'
               }`}
@@ -99,67 +102,89 @@ export default function MisGastosPage() {
       {error && <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-sm">{error}</div>}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <StatCard icon="🚛" label="Gastos" valor={gastos.length} />
-        <StatCard icon="💰" label="Total" valor={fmt(total)} />
-        <StatCard icon="✅" label="Pagado" valor={fmt(pagados)} />
+        <StatCard titulo="Gastos" valor={pagination.totalCount} icono="🚛" color="blue" />
+        <StatCard titulo="Total" valor={fmt(total)} icono="💰" color="green" />
+        <StatCard titulo="Pagado" valor={fmt(pagados)} icono="✅" color="amber" />
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         {cargando ? (
-          <div className="p-12 text-center text-slate-400 dark:text-slate-500">Cargando...</div>
+          <SkeletonTable columns={7} rows={10} />
         ) : gastos.length === 0 ? (
           <div className="p-12 text-center text-slate-400 dark:text-slate-500">
             <div className="text-4xl mb-3">📭</div>
             <p className="font-medium">No hay gastos en este período</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b-2 border-slate-200 dark:border-slate-800 text-left">
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Gasto</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Chofer</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Monto</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Factura</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Pago</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {gastos.map(g => (
-                  <tr key={g.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{g.nombre}</div>
-                      {g.descripcion && <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{g.descripcion}</div>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{g.chofer_nombre}</div>
-                      <div className="text-xs text-slate-400 dark:text-slate-500">{g.chofer_placa}</div>
-                    </td>
-                    <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{fmt(g.monto)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${g.tiene_factura ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'}`}>
-                        {g.tiene_factura ? '✅ Con factura' : '❌ Sin factura'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">{g.tipo_pago === 'qr' ? '📱 QR / Transferencia' : '💵 Físico'}</span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">{fmtFecha(g.fecha)}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => verDetalle(g.id)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
-                      >
-                        Ver
-                      </button>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 border-b-2 border-slate-200 dark:border-slate-800 text-left">
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Gasto</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Chofer</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Monto</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Factura</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Pago</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {gastos.map(g => (
+                    <tr key={g.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{g.nombre}</div>
+                        {g.descripcion && <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{g.descripcion}</div>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{g.chofer_nombre}</div>
+                        <div className="text-xs text-slate-400 dark:text-slate-500">{g.chofer_placa}</div>
+                      </td>
+                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{fmt(g.monto)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${g.tiene_factura ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'}`}>
+                          {g.tiene_factura ? '✅ Con factura' : '❌ Sin factura'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">{g.tipo_pago === 'qr' ? '📱 QR / Transferencia' : '💵 Físico'}</span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">{fmtFecha(g.fecha)}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => verDetalle(g.id)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
+                        >
+                          Ver
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Paginación */}
+            {pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400">
+                <span>
+                  Mostrando {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.totalCount)} de {pagination.totalCount}
+                </span>
+                <div className="flex gap-1">
+                  <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
+                    className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 disabled:opacity-40">
+                    ← Anterior
+                  </button>
+                  <span className="px-3 py-1 text-xs font-medium">{pagination.page} / {pagination.totalPages}</span>
+                  <button disabled={page >= pagination.totalPages} onClick={() => setPage(p => p + 1)}
+                    className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 disabled:opacity-40">
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -228,7 +253,9 @@ export default function MisGastosPage() {
                     <img
                       src={detalle.foto_factura}
                       alt="Factura"
-                      className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in"
+                      width={400}
+                      height={176}
+                      className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in object-cover"
                       onClick={() => setImagenGrande(detalle.foto_factura)}
                     />
                   </div>
@@ -239,7 +266,9 @@ export default function MisGastosPage() {
                     <img
                       src={detalle.foto_qr}
                       alt="Comprobante"
-                      className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in"
+                      width={400}
+                      height={176}
+                      className="max-h-44 rounded-lg border border-slate-200 dark:border-slate-800 cursor-zoom-in object-cover"
                       onClick={() => setImagenGrande(detalle.foto_qr)}
                     />
                   </div>
