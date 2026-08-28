@@ -43,7 +43,12 @@ function ChoferesContenido() {
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [nuevaRef, setNuevaRef] = useState({ nombre: '', parentesco: '', telefono: '' });
   const [nuevoSeg, setNuevoSeg] = useState({ fecha_inicio: '', fecha_expiracion: '' });
-  const [nuevaMulta, setNuevaMulta] = useState({ fecha: '', motivo: '', monto: '', observaciones: '' });
+  const [nuevaMulta, setNuevaMulta] = useState({ fecha: '', motivo: '', monto: '', observaciones: '', nro_viaje: '', placa: '', flota_id: '', importe_pagado: '', fecha_pago: '' });
+  const [flotaLista, setFlotaLista] = useState([]);
+
+  useEffect(() => {
+    fetch('/api/flota?limit=100').then(r=>r.json()).then(d=>setFlotaLista(d.vehiculos||d.flota||[])).catch(()=>{});
+  }, []);
 
   const params = useCallback(() => {
     const p = new URLSearchParams();
@@ -203,14 +208,21 @@ function ChoferesContenido() {
   // ---- Multas ----
   async function agregarMulta() {
     if (!nuevaMulta.fecha || !nuevaMulta.motivo.trim()) { setAvisoDetalle('La fecha y el motivo de la multa son obligatorios'); return; }
+    const payload = {
+      ...nuevaMulta,
+      flota_id: nuevaMulta.flota_id || null,
+      placa: nuevaMulta.placa || null,
+    };
+    // Si eligió camión del select, placa se deriva server-side por flota_id
+    if (payload.flota_id) delete payload.placa;
     const res = await fetch(`/api/choferes/${detalle.chofer.id}/multas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(nuevaMulta),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) { setAvisoDetalle(data.error || 'No se pudo registrar la multa'); return; }
-    setNuevaMulta({ fecha: '', motivo: '', monto: '', observaciones: '' });
+    setNuevaMulta({ fecha: '', motivo: '', monto: '', observaciones: '', nro_viaje: '', placa: '', flota_id: '', importe_pagado: '', fecha_pago: '' });
     setAvisoDetalle('');
     await abrirDetalle(detalle.chofer);
   }
@@ -553,13 +565,13 @@ function ChoferesContenido() {
                   <p className="mt-2 text-[11px] text-slate-400">ℹ️ El estado del seguro se calcula automáticamente según la fecha actual.</p>
                 </section>
 
-                {/* Multas */}
+                {/* Multas — con snapshot de placa para historial (conductor puede rotar camiones) */}
                 <section className="border-t border-slate-100 dark:border-slate-800 pt-4 mb-6">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Multas</h4>
                     {detalle.multas.length > 0 && (
                       <span className="text-xs text-slate-400">
-                        Total: Bs. {detalle.multas.reduce((a, m) => a + Number(m.monto || 0), 0).toLocaleString('es-BO')}
+                        Total: Bs. {detalle.multas.reduce((a, m) => a + Number(m.monto || 0), 0).toLocaleString('es-BO')} · Debe: Bs. {detalle.multas.reduce((a, m) => a + (Number(m.monto||0) - Number(m.importe_pagado||0)), 0).toLocaleString('es-BO')}
                       </span>
                     )}
                   </div>
@@ -567,24 +579,49 @@ function ChoferesContenido() {
                     <p className="text-xs text-slate-400 mb-2">Sin multas registradas.</p>
                   ) : (
                     <ul className="space-y-1.5 mb-3">
-                      {detalle.multas.map(m => (
+                      {detalle.multas.map(m => {
+                        const debe = Number(m.monto||0) - Number(m.importe_pagado||0);
+                        const estado = debe <= 0 ? 'Pagado' : (Number(m.importe_pagado||0) > 0 ? 'Parcial' : 'Pendiente');
+                        return (
                         <li key={m.id} className="flex items-start justify-between gap-2 text-sm bg-slate-50 dark:bg-slate-800/60 rounded-lg px-3 py-2">
-                          <div>
-                            <b>{fmtFechaISO(m.fecha)}</b> · {m.motivo}
-                            {m.monto != null && <span className="ml-1 font-medium">· Bs. {Number(m.monto).toLocaleString('es-BO')}</span>}
-                            {m.observaciones && <p className="text-xs text-slate-400 mt-0.5">{m.observaciones}</p>}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              <b>{fmtFechaISO(m.fecha)}</b>
+                              {m.nro_viaje && <span className="text-xs bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded">Viaje {m.nro_viaje}</span>}
+                              {m.placa && <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 px-1.5 py-0.5 rounded font-mono">{m.placa}</span>}
+                              <span>· {m.motivo}</span>
+                            </div>
+                            <div className="text-xs mt-1 flex flex-wrap gap-2">
+                              {m.monto != null && <span>Multa: <b>Bs. {Number(m.monto).toLocaleString('es-BO')}</b></span>}
+                              {m.importe_pagado != null && Number(m.importe_pagado)>0 && <span>Pagado: Bs. {Number(m.importe_pagado).toLocaleString('es-BO')}</span>}
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${estado==='Pagado'?'bg-green-100 text-green-700':estado==='Parcial'?'bg-amber-100 text-amber-700':'bg-red-100 text-red-600'}`}>{estado} {debe>0?`· Debe Bs. ${debe.toLocaleString('es-BO')}`:''}</span>
+                            </div>
+                            {m.observaciones && <p className="text-xs text-slate-400 mt-0.5 truncate">{m.observaciones}</p>}
                           </div>
                           <button type="button" onClick={() => quitarMulta(m.id)} className="text-red-400 hover:text-red-600 text-xs shrink-0">Quitar</button>
                         </li>
-                      ))}
+                      )})}
                     </ul>
                   )}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    <input type="date" title="Fecha" value={nuevaMulta.fecha} onChange={e => setNuevaMulta({ ...nuevaMulta, fecha: e.target.value })} className={`${inputCls} text-sm`} />
+                    <input type="date" title="Fecha *" value={nuevaMulta.fecha} onChange={e => setNuevaMulta({ ...nuevaMulta, fecha: e.target.value })} className={`${inputCls} text-sm`} />
+                    <input placeholder="Nro Viaje" value={nuevaMulta.nro_viaje} onChange={e => setNuevaMulta({ ...nuevaMulta, nro_viaje: e.target.value })} className={`${inputCls} text-sm`} />
+                    <select value={nuevaMulta.flota_id} onChange={e => setNuevaMulta({ ...nuevaMulta, flota_id: e.target.value, placa: '' })} className={`${inputCls} text-sm`}>
+                      <option value="">Camión (elige placa)</option>
+                      {flotaLista.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.marca} {v.modelo}</option>)}
+                    </select>
+                    <input placeholder="Placa manual" value={nuevaMulta.placa} onChange={e => setNuevaMulta({ ...nuevaMulta, placa: e.target.value.toUpperCase(), flota_id: '' })} disabled={!!nuevaMulta.flota_id} className={`${inputCls} text-sm font-mono ${nuevaMulta.flota_id ? 'bg-slate-100 dark:bg-slate-700 opacity-60' : ''}`} />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
                     <input placeholder="Motivo *" value={nuevaMulta.motivo} onChange={e => setNuevaMulta({ ...nuevaMulta, motivo: e.target.value })} className={`${inputCls} text-sm`} />
-                    <input type="number" min={0} step="any" placeholder="Monto (opcional)" value={nuevaMulta.monto} onChange={e => setNuevaMulta({ ...nuevaMulta, monto: e.target.value })} className={`${inputCls} text-sm`} />
+                    <input type="number" min={0} step="any" placeholder="Importe multa" value={nuevaMulta.monto} onChange={e => setNuevaMulta({ ...nuevaMulta, monto: e.target.value })} className={`${inputCls} text-sm`} />
+                    <input type="number" min={0} step="any" placeholder="Importe pagado" value={nuevaMulta.importe_pagado} onChange={e => setNuevaMulta({ ...nuevaMulta, importe_pagado: e.target.value })} className={`${inputCls} text-sm`} />
+                    <input type="date" title="Fecha de pago" value={nuevaMulta.fecha_pago} onChange={e => setNuevaMulta({ ...nuevaMulta, fecha_pago: e.target.value })} className={`${inputCls} text-sm`} />
+                  </div>
+                  <div className="mt-2">
                     <input placeholder="Observaciones" value={nuevaMulta.observaciones} onChange={e => setNuevaMulta({ ...nuevaMulta, observaciones: e.target.value })} className={`${inputCls} text-sm`} />
                   </div>
+                  <p className="mt-1.5 text-[11px] text-slate-400">ℹ️ La placa se guarda al registrar la multa (snapshot histórico). El conductor puede rotar camiones sin alterar historiales.</p>
                   <button type="button" onClick={agregarMulta} className="mt-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 hover:bg-violet-200">+ Registrar multa</button>
                 </section>
 

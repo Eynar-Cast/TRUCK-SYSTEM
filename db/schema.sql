@@ -196,16 +196,27 @@ CREATE TABLE seguros_carga (
 CREATE INDEX idx_seguros_carga_flota ON seguros_carga(flota_id);
 
 -- Multas del conductor
+-- Un conductor puede manejar 1 o más camiones (rotación). Para no alterar
+-- historiales al reasignar, la placa y el camión (flota_id) se guardan
+-- al momento de registrar la multa (snapshot histórico), no vía JOIN vivo.
 CREATE TABLE multas (
-  id            SERIAL PRIMARY KEY,
-  chofer_id     INTEGER NOT NULL REFERENCES choferes(id) ON DELETE CASCADE,
-  fecha         DATE NOT NULL,
-  motivo        TEXT NOT NULL,
-  monto         NUMERIC(10,2) CHECK (monto IS NULL OR monto >= 0),
-  observaciones TEXT,
-  creado        TIMESTAMPTZ NOT NULL DEFAULT now()
+  id              SERIAL PRIMARY KEY,
+  chofer_id       INTEGER NOT NULL REFERENCES choferes(id) ON DELETE CASCADE,
+  fecha           DATE NOT NULL,
+  motivo          TEXT NOT NULL,
+  monto           NUMERIC(10,2) CHECK (monto IS NULL OR monto >= 0),
+  observaciones   TEXT,
+  -- Campos para reporte idéntico a plantilla "Multas" C3:M3
+  nro_viaje       TEXT,
+  placa           TEXT, -- snapshot de la placa del camión al momento de la infracción
+  flota_id        INTEGER REFERENCES flota(id) ON DELETE SET NULL,
+  importe_pagado  NUMERIC(10,2) CHECK (importe_pagado IS NULL OR importe_pagado >= 0),
+  fecha_pago      DATE,
+  creado          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_multas_chofer ON multas(chofer_id);
+CREATE INDEX idx_multas_flota ON multas(flota_id);
+CREATE INDEX idx_multas_fecha ON multas(fecha);
 
 -- Documentación del conductor (luz, agua, croquis, adjuntos con imagen en Blob)
 CREATE TABLE conductor_documentos (
