@@ -14,7 +14,7 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className="antialiased bg-slate-100 dark:bg-slate-950">
+      <body className="antialiased bg-slate-50 dark:bg-slate-950 selection:bg-blue-600 selection:text-white">
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('gestor-tema');var d=t?t==='oscuro':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,

@@ -45,7 +45,7 @@ export default async function AppLayout({ children }) {
   const nombre = sesion.nombre;
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex">
       {/* Desktop sidebar */}
       <Sidebar items={items} nombre={nombre} />
 
@@ -54,7 +54,7 @@ export default async function AppLayout({ children }) {
         {/* Mobile header */}
         <MobileHeader items={items} nombre={nombre} />
 
-        <main className="flex-1 p-4 md:p-6 min-w-0 overflow-x-hidden">{children}</main>
+        <main className="flex-1 p-4 md:p-6 lg:p-8 min-w-0 overflow-x-hidden">{children}</main>
       </div>
     </div>
   );

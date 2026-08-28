@@ -11,17 +11,17 @@
  */
 
 const ESTILOS = {
-  factura:     'bg-emerald-100 text-emerald-700',
-  sin_factura: 'bg-slate-100 text-slate-500',
-  fisico:      'bg-blue-100 text-blue-700',
-  qr:          'bg-violet-100 text-violet-700',
-  devuelto:    'bg-amber-100 text-amber-700',
-  activo:      'bg-emerald-100 text-emerald-700',
-  inactivo:    'bg-red-100 text-red-600',
-  admin:       'bg-indigo-100 text-indigo-700',
-  user:        'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-  pagado:      'bg-emerald-100 text-emerald-700',
-  pendiente:   'bg-amber-100 text-amber-700',
+  factura:     'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/15 dark:bg-emerald-950/40 dark:text-emerald-300',
+  sin_factura: 'bg-slate-100 text-slate-600 ring-1 ring-slate-500/10 dark:bg-slate-800 dark:text-slate-400',
+  fisico:      'bg-blue-50 text-blue-700 ring-1 ring-blue-600/15 dark:bg-blue-950/40 dark:text-blue-300',
+  qr:          'bg-violet-50 text-violet-700 ring-1 ring-violet-600/15 dark:bg-violet-950/40 dark:text-violet-300',
+  devuelto:    'bg-amber-50 text-amber-700 ring-1 ring-amber-500/15 dark:bg-amber-950/40 dark:text-amber-300',
+  activo:      'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/15 dark:bg-emerald-950/40 dark:text-emerald-300',
+  inactivo:    'bg-red-50 text-red-600 ring-1 ring-red-500/15 dark:bg-red-950/40 dark:text-red-300',
+  admin:       'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600/15 dark:bg-indigo-950/40 dark:text-indigo-300',
+  user:        'bg-slate-100 text-slate-600 ring-1 ring-slate-500/10 dark:bg-slate-800 dark:text-slate-400',
+  pagado:      'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/15 dark:bg-emerald-950/40 dark:text-emerald-300',
+  pendiente:   'bg-amber-50 text-amber-700 ring-1 ring-amber-500/15 dark:bg-amber-950/40 dark:text-amber-300',
 };
 
 const LABELS = {
@@ -43,7 +43,7 @@ export default function Badge({ tipo, label }) {
   const texto = label || LABELS[tipo] || tipo;
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${estilo}`}>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide ${estilo}`}>
       {texto}
     </span>
   );
