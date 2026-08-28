@@ -5,8 +5,11 @@ import LogoutButton from './LogoutButton';
 import CambiarPassword from './CambiarPassword';
 import ThemeToggle from './ThemeToggle';
 
+const RUTAS_OCULTAS = new Set(['/exportar', '/limpiar-datos']);
+
 export default function Sidebar({ items, nombre }) {
   const pathname = usePathname();
+  const itemsVisibles = items.filter(i => !RUTAS_OCULTAS.has(i.href));
 
   return (
     <aside className="hidden md:flex w-60 bg-slate-900 text-slate-300 flex-col print:hidden fixed top-0 left-0 h-screen overflow-y-auto z-40">
@@ -15,7 +18,7 @@ export default function Sidebar({ items, nombre }) {
         <div className="text-xs text-slate-500">{nombre}</div>
       </div>
       <nav className="p-3 flex-1">
-        {items.map(i => {
+        {itemsVisibles.map(i => {
           const activo = pathname.startsWith(i.href);
           return (
             <Link

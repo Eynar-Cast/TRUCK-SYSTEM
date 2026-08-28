@@ -6,9 +6,12 @@ import LogoutButton from './LogoutButton';
 import CambiarPassword from './CambiarPassword';
 import ThemeToggle from './ThemeToggle';
 
+const RUTAS_OCULTAS = new Set(['/exportar', '/limpiar-datos']);
+
 export default function MobileHeader({ items, nombre }) {
   const [abierto, setAbierto] = useState(false);
   const pathname = usePathname();
+  const itemsVisibles = items.filter(i => !RUTAS_OCULTAS.has(i.href));
 
   return (
     <>
@@ -35,7 +38,7 @@ export default function MobileHeader({ items, nombre }) {
               <button onClick={() => setAbierto(false)} className="text-white text-xl">✕</button>
             </div>
             <nav className="p-3 flex-1 overflow-y-auto">
-              {items.map(i => {
+              {itemsVisibles.map(i => {
                 const activo = pathname.startsWith(i.href);
                 return (
                   <Link
