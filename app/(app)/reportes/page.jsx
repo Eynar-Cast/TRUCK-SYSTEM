@@ -11,12 +11,10 @@ const TIPOS = [
   { id: 'compras', label: '🛒 Compras' },
   { id: 'devoluciones', label: '🔄 Devoluciones' },
   { id: 'gastos_choferes', label: '💸 Gastos de conductores' },
-  { id: 'camiones', label: '🚚 Camiones' },
-  { id: 'llantas', label: '🛞 Llantas' },
-  { id: 'aceites', label: '🛢️ Aceites' },
-  { id: 'seguros_camiones', label: '🛡️ Seguros de camiones' },
+  // Plantilla idéntica al Excel control-de-flota-vehicular.xlsx
+  { id: 'camiones', label: '🚚 Flota' },
+  { id: 'seguros_camiones', label: '🛡️ Seguros' },
   { id: 'conductores', label: '👨‍✈️ Conductores' },
-  { id: 'seguros_individuales', label: '🧾 Seguros individuales' },
   { id: 'multas', label: '🚨 Multas' },
 ];
 
