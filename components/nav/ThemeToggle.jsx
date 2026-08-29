@@ -14,7 +14,7 @@ export default function ThemeToggle({ variant = 'fila' }) {
         onClick={toggle}
         aria-label="Cambiar tema"
         title="Cambiar tema"
-        className="w-9 h-9 flex items-center justify-center text-lg rounded-xl bg-white/[0.06] hover:bg-white/10 ring-1 ring-white/10 hover:ring-white/15 transition-all"
+        className="w-9 h-9 flex items-center justify-center text-lg rounded-lg hover:bg-white/10 transition"
       >
         <span className="dark:hidden">🌙</span>
         <span className="hidden dark:inline">☀️</span>
@@ -26,9 +26,9 @@ export default function ThemeToggle({ variant = 'fila' }) {
     <button
       onClick={toggle}
       aria-label="Cambiar tema"
-      className="group w-full text-left flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-slate-400 hover:bg-white/[0.06] hover:text-white ring-1 ring-transparent hover:ring-white/10 transition-all"
+      className="group w-full text-left flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
     >
-      <span className="w-7 h-7 rounded-lg flex items-center justify-center text-base bg-white/5 group-hover:bg-white/10 ring-1 ring-white/5">
+      <span className="w-7 h-7 rounded-lg flex items-center justify-center text-base bg-white/5 group-hover:bg-white/10">
         <span className="dark:hidden">🌙</span>
         <span className="hidden dark:inline">☀️</span>
       </span>

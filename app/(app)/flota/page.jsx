@@ -15,6 +15,7 @@ const ESTADO_VEHICULO_ESTILO = {
   'Disponible': 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
   'Seguro Vencido': 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300',
   'Mantenimiento': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  'En ruta': 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
 };
 
 const VACIO = { tipo: '', marca: '', modelo: '', placa: '', numero_serie: '', color: '', anio: '', carga_maxima_kg: '', operador_logistico: '', chofer_id: '' };
@@ -30,6 +31,7 @@ const COLUMNAS = [
   { key: null, label: 'Operador logístico' },
   { key: null, label: 'Conductor designado' },
   { key: 'estado', label: 'Estado' },
+  { key: null, label: '🛣️ Viaje' },
   { key: null, label: '🛞 Llantas' },
   { key: null, label: '🛢️ Aceites' },
 ];
@@ -74,9 +76,17 @@ const FilaVehiculo = ({ v, i, sort, dir, ordenarPor, abrirEditar, toggleActivo }
       <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{v.operador_logistico || '—'}</td>
       <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{v.conductor_designado || '—'}</td>
       <td className="px-3 py-2.5">
-        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${ESTADO_VEHICULO_ESTILO[v.estado_vehiculo] || ''}`}>
+        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${ESTADO_VEHICULO_ESTILO[v.estado_vehiculo] || 'bg-slate-100 text-slate-600'}`}>
           {v.activo ? v.estado_vehiculo : 'Inactivo'}
         </span>
+      </td>
+      <td className="px-3 py-2.5">
+        {v.viaje_actual ? (
+          <span title={`${v.viaje_actual.tramo||''} · ${v.viaje_actual.producto||''} ${v.viaje_actual.codigo?`· ${v.viaje_actual.codigo}`:''}`} className="inline-flex flex-col text-xs leading-tight">
+            <span className="font-semibold text-blue-700 dark:text-blue-300">🛣️ {v.viaje_actual.tramo||'En ruta'}</span>
+            <span className="text-slate-400 text-[11px]">{v.viaje_actual.producto||''} {v.viaje_actual.codigo?`· ${v.viaje_actual.codigo}`:''}</span>
+          </span>
+        ) : <span className="text-slate-400 text-xs">—</span>}
       </td>
       <td className="px-3 py-2.5">
         <BadgeMantenimiento estado={v.llantas_estado}
@@ -259,71 +269,16 @@ export default function FlotaPage() {
           <p className="text-slate-500 dark:text-slate-400 text-sm">Tractocamiones y unidades chata o sider</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => window.print()} className="bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-4 py-2 rounded-lg text-sm">🖨️ Imprimir</button>
           <button onClick={() => descargar(`/api/flota/exportar?${params().toString()}`)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg text-sm">⬇️ Exportar Excel</button>
           <button onClick={abrirNuevo} className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm">➕ Nuevo vehículo</button>
         </div>
       </div>
 
-      {/* Indicadores */}
-      {resumen && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-          <StatCard titulo="Total de vehículos" valor={resumen.total} icono="🚚" color="blue" />
-          <StatCard titulo="Disponibles" valor={resumen.disponibles} icono="✅" color="green" />
-          <StatCard titulo="Con seguro vencido" valor={resumen.seguro_vencido} icono="⚠️" color="red" />
-          <StatCard titulo="Seguro por vencer (30 días)" valor={resumen.por_vencer} icono="📅" color="amber" />
-          <StatCard titulo="Llantas por cambiar" valor={resumen.llantas_por_cambiar} icono="🛞" color={resumen.llantas_por_cambiar > 0 ? 'red' : 'green'} />
-          <StatCard titulo="Aceites por cambiar" valor={resumen.aceites_por_cambiar} icono="🛢️" color={resumen.aceites_por_cambiar > 0 ? 'red' : 'green'} />
-        </div>
-      )}
-
-      {/* Alertas de cambio de llantas y aceites */}
-      {(alertas.yaLL.length > 0 || alertas.prontoLL.length > 0 || alertas.yaAC.length > 0 || alertas.prontoAC.length > 0) && (
-        <div className="space-y-2 mb-4 no-print">
-          {(alertas.yaLL.length > 0 || alertas.yaAC.length > 0) && (
-            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-900 text-sm text-red-700 dark:text-red-300">
-              🚨 <b>¡Cambio necesario ahora!</b>{' '}
-              {alertas.yaLL.length > 0 && <span>🛞 Llantas: <b>{alertas.yaLL.map(v => v.placa).join(', ')}</b>. </span>}
-              {alertas.yaAC.length > 0 && (
-                <span>
-                  🛢️ Aceites:{' '}
-                  {alertas.yaAC.map(v => {
-                    const tipos = Object.entries(v.aceites_detalle || {})
-                      .filter(([, d]) => d.estado === 'Cambiar ya')
-                      .map(([t]) => t);
-                    return `${v.placa} (${tipos.join(', ')})`;
-                  }).join(' · ')}
-                  .
-                </span>
-              )}
-            </div>
-          )}
-          {(alertas.prontoLL.length > 0 || alertas.prontoAC.length > 0) && (
-            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-900 text-sm text-amber-700 dark:text-amber-300">
-              ⏳ <b>Por cambiar (próximos 15 días):</b>{' '}
-              {alertas.prontoLL.length > 0 && <span>🛞 Llantas: {alertas.prontoLL.map(v => v.placa).join(', ')}. </span>}
-              {alertas.prontoAC.length > 0 && (
-                <span>
-                  🛢️ Aceites:{' '}
-                  {alertas.prontoAC.map(v => {
-                    const tipos = Object.entries(v.aceites_detalle || {})
-                      .filter(([, d]) => d.estado === 'Por cambiar')
-                      .map(([t]) => t);
-                    return `${v.placa} (${tipos.join(', ')})`;
-                  }).join(' · ')}
-                  .
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
       {error && <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-sm no-print">{error}</div>}
 
       {/* Búsqueda y filtros del módulo */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 mb-4 no-print">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="🔍 Buscar: placa, modelo, serie, operador…" className={`${inputCls} col-span-2`} />
           <select value={fTipo} onChange={e => { setFTipo(e.target.value); setPage(1); }} className={inputCls}>
             <option value="">Tipo: todos</option>
@@ -340,6 +295,7 @@ export default function FlotaPage() {
           <select value={fEstado} onChange={e => { setFEstado(e.target.value); setPage(1); }} className={inputCls}>
             <option value="">Estado: todos</option>
             <option value="Disponible">Disponible</option>
+            <option value="En ruta">En ruta</option>
             <option value="Seguro Vencido">Seguro Vencido</option>
             <option value="Mantenimiento">Mantenimiento</option>
           </select>
@@ -406,7 +362,7 @@ export default function FlotaPage() {
       {modalAbierto && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setModalAbierto(false); }}>
-          <form onSubmit={guardar} className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl p-6 max-h-[92vh] overflow-y-auto">
+          <form onSubmit={guardar} className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl p-4 sm:p-4 sm:p-6 max-h-[92vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{editando ? `Editar vehículo ${editando.placa}` : 'Nuevo vehículo'}</h3>
               <button type="button" onClick={() => setModalAbierto(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
@@ -414,7 +370,7 @@ export default function FlotaPage() {
 
             {errorModal && <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-sm">{errorModal}</div>}
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-5">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo *</label>
                 <input required list="lista-tipos" value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })} className={inputCls} placeholder="Ej: Tractocamión" />

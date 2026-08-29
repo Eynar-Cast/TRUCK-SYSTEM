@@ -45,7 +45,7 @@ export default function ModalDetalle({ compra, onClose }) {
         {/* Cuerpo */}
         <div className="p-5 space-y-4">
           {/* Info principal */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Campo label="Producto" valor={compra.producto} />
             <Campo label="Precio" valor={fmt(compra.precio)} />
             <Campo label="Fecha" valor={fmtDate(compra.fecha)} />

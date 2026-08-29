@@ -223,7 +223,7 @@ export default function MisComprasPage() {
               <div className="p-3 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-sm">{errorDetalle}</div>
             ) : (
               <div className="grid gap-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-3">
                     <div className="text-[11px] text-slate-400 dark:text-slate-500 font-semibold uppercase mb-1">Producto</div>
                     <div className="font-bold text-slate-900 dark:text-slate-100">{detalle.producto}</div>

@@ -206,7 +206,7 @@ export default function MisGastosPage() {
               <div className="p-3 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-sm">{errorDetalle}</div>
             ) : (
               <div className="grid gap-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-3">
                     <div className="text-[11px] text-slate-400 dark:text-slate-500 font-semibold uppercase mb-1">Gasto</div>
                     <div className="font-bold text-slate-900 dark:text-slate-100">{detalle.nombre}</div>
@@ -229,7 +229,7 @@ export default function MisGastosPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-3">
                     <div className="text-[11px] text-slate-400 dark:text-slate-500 font-semibold uppercase mb-1">Factura</div>
                     <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${detalle.tiene_factura ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'}`}>

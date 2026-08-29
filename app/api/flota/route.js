@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { obtenerSesion } from '@/lib/session';
-import { filtrosFlota, whereDe, joinSeguroActual, joinAlertasMantenimiento, estadoVehiculoSql } from '@/lib/reportes';
-import { validarDatosVehiculo, HOY_BOLIVIA_SQL, evaluarProxima, peorEstado } from '@/lib/flota';
+import { filtrosFlota, whereDe, joinSeguroActual, joinAlertasMantenimiento, joinViajeActivo, estadoVehiculoSql } from '@/lib/reportes';
+import { validarDatosVehiculo, HOY_BOLIVIA_SQL, evaluarProxima, peorEstado, enRutaPorViaje } from '@/lib/flota';
 
 // Orden permitido (lista blanca para evitar inyección en ORDER BY)
 const ORDEN = {
@@ -55,10 +55,12 @@ export async function GET(request) {
               seg.seguro_id, seg.seguro_aseguradora, seg.seguro_poliza,
               seg.seguro_vencimiento, COALESCE(seg.estado_seguro,'') AS estado_seguro_actual,
               llt.proxima AS llantas_proxima,
-              ac.por_tipo AS aceites_proxima
+              ac.por_tipo AS aceites_proxima,
+              viaje.viaje_id, viaje.viaje_tramo, viaje.viaje_producto, viaje.viaje_fecha_carga, viaje.viaje_fecha_llegada, viaje.viaje_codigo, viaje.viaje_chofer
        FROM flota f
        ${joinSeguroActual()}
        ${joinAlertasMantenimiento()}
+       ${joinViajeActivo()}
        LEFT JOIN choferes ch ON ch.id = f.chofer_id
        ${filtro.texto}
        ORDER BY ${orden} ${dir} NULLS LAST, f.id ASC
@@ -74,12 +76,16 @@ export async function GET(request) {
   const totalCount = countResult[0]?.total || 0;
   const totalPages = Math.ceil(totalCount / limit);
 
-  // Estados de llantas/aceites derivados de las fechas programadas
+  // Estados de llantas/aceites derivados de las fechas programadas + En ruta automático
   const vehiculos = rows.map(v => {
     const ac = estadoAceitesDe(v.aceites_proxima);
+    const enRuta = !!v.viaje_id && enRutaPorViaje({ fecha_llegada: v.viaje_fecha_llegada });
+    const estadoBase = v.estado_seguro_actual === 'Vencido' ? 'Seguro Vencido' : 'Disponible';
     return {
       ...v,
-      estado_vehiculo: v.estado_seguro_actual === 'Vencido' ? 'Seguro Vencido' : 'Disponible',
+      en_ruta: enRuta,
+      viaje_actual: v.viaje_id ? { id: v.viaje_id, tramo: v.viaje_tramo, producto: v.viaje_producto, fecha_carga: v.viaje_fecha_carga, fecha_llegada: v.viaje_fecha_llegada, codigo: v.viaje_codigo, chofer: v.viaje_chofer } : null,
+      estado_vehiculo: enRuta ? 'En ruta' : estadoBase,
       llantas_proxima: v.llantas_proxima,
       llantas_estado: evaluarProxima(v.llantas_proxima),
       aceites_estado: ac.estado,

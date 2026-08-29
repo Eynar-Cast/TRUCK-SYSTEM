@@ -48,17 +48,17 @@ function LoginForm() {
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/imagenes/login.jpg')" }}
       />
-      {/* Overlay con gradiente para contraste */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-900/40 via-slate-900/30 to-indigo-900/30" />
+      {/* Overlay neutro para dar contraste sin tintes de color */}
+      <div className="absolute inset-0 bg-slate-900/30" />
 
       {/* Tarjeta de vidrio (glassmorphism) */}
-      <div className="relative z-10 w-full max-w-sm rounded-[1.5rem] p-8 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] border border-white/20 bg-white/[0.12] backdrop-blur-2xl ring-1 ring-white/10">
+      <div className="relative z-10 w-full max-w-sm rounded-2xl p-8 shadow-2xl border border-white/30 bg-white/15 backdrop-blur-xl">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-600/25 ring-1 ring-white/20">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl bg-white/20 border border-white/30 backdrop-blur shadow-lg">
             🏭
           </div>
-          <h1 className="text-xl font-bold text-white drop-shadow tracking-tight">GestorCompras</h1>
-          <p className="text-white/70 text-sm mt-1 font-medium">Sistema de Registro de Compras</p>
+          <h1 className="text-xl font-bold text-white drop-shadow">GestorCompras</h1>
+          <p className="text-white/70 text-sm mt-1">Sistema de Registro de Compras</p>
         </div>
 
         {avisoSesion && !error && (
@@ -82,7 +82,7 @@ function LoginForm() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl outline-none bg-white/[0.12] border border-white/20 text-white placeholder-white/50 focus:bg-white/[0.18] focus:border-white/40 focus:ring-2 focus:ring-white/20 transition-all shadow-inner"
+              className="w-full px-3 py-2 rounded-lg outline-none bg-white/15 border border-white/30 text-white placeholder-white/50 focus:bg-white/25 focus:border-white/60 focus:ring-2 focus:ring-white/30 transition"
               placeholder="Ingresa tu usuario"
               autoFocus
             />
@@ -95,14 +95,14 @@ function LoginForm() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl outline-none bg-white/[0.12] border border-white/20 text-white placeholder-white/50 focus:bg-white/[0.18] focus:border-white/40 focus:ring-2 focus:ring-white/20 transition-all shadow-inner"
+              className="w-full px-3 py-2 rounded-lg outline-none bg-white/15 border border-white/30 text-white placeholder-white/50 focus:bg-white/25 focus:border-white/60 focus:ring-2 focus:ring-white/30 transition"
               placeholder="••••••••"
             />
           </div>
           <button
             type="submit"
             disabled={cargando}
-            className="w-full bg-white text-slate-900 hover:bg-white/90 disabled:opacity-60 font-semibold py-2.5 rounded-xl transition-all shadow-lg shadow-black/10 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
+            className="w-full bg-white/25 hover:bg-white/40 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg transition backdrop-blur border border-white/30"
           >
             {cargando ? 'Ingresando...' : 'Iniciar sesión'}
           </button>

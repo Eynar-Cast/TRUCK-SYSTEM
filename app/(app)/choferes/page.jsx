@@ -291,7 +291,6 @@ function ChoferesContenido() {
           <p className="text-slate-500 dark:text-slate-400 text-sm">Datos personales, licencia, calificación, referencias y seguro individual</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => window.print()} className="bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-4 py-2 rounded-lg text-sm">🖨️ Imprimir</button>
           <button onClick={() => {
             const p = new URLSearchParams();
             if (q) p.set('q', q);
@@ -302,22 +301,11 @@ function ChoferesContenido() {
         </div>
       </div>
 
-      {/* Indicadores permitidos */}
-      {resumen && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-          <StatCard titulo="Conductores activos" valor={resumen.total_activos} icono="👨‍✈️" color="violet" />
-          {[5, 4, 3].map(n => (
-            <StatCard key={n} titulo={`Con ${n} ★`} valor={resumen[`cal_${n}`]} icono="⭐" color={n === 5 ? 'green' : n === 4 ? 'blue' : 'amber'} />
-          ))}
-          <StatCard titulo="Total registrados" valor={resumen.total} icono="📋" color="blue" />
-        </div>
-      )}
-
       {error && <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-sm no-print">{error}</div>}
 
       {/* Filtros */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 mb-4 no-print">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Buscar: nombre, documento o licencia…" className={inputCls} />
           <select value={fCalif} onChange={e => { setFCalif(e.target.value); setPage(1); }} className={inputCls}>
             <option value="">Calificación: todas</option>
@@ -414,7 +402,7 @@ function ChoferesContenido() {
       {modalAbierto && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setModalAbierto(false); }}>
-          <form onSubmit={guardar} className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 max-h-[92vh] overflow-y-auto">
+          <form onSubmit={guardar} className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-4 sm:p-6 max-h-[92vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{editando ? 'Editar conductor' : 'Nuevo conductor'}</h3>
               <button type="button" onClick={() => setModalAbierto(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
@@ -427,7 +415,7 @@ function ChoferesContenido() {
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre completo *</label>
                 <input required value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} className={inputCls} placeholder="Ej: Pedro Quispe" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Documento de identidad</label>
                   <input value={form.documento} onChange={e => setForm({ ...form, documento: e.target.value })} className={inputCls} placeholder="Ej: 1234567" />
@@ -437,7 +425,7 @@ function ChoferesContenido() {
                   <input value={form.licencia} onChange={e => setForm({ ...form, licencia: e.target.value })} className={`${inputCls} font-mono`} placeholder="Ej: LIC-456789" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Teléfono/Celular</label>
                   <input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} className={inputCls} placeholder="Ej: 70012345" />
@@ -471,7 +459,7 @@ function ChoferesContenido() {
       {(detalle || cargandoDetalle) && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setDetalle(null); }}>
-          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-xl p-6 max-h-[92vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-xl p-4 sm:p-4 sm:p-6 max-h-[92vh] overflow-y-auto">
             {cargandoDetalle || !detalle ? (
               <p className="p-6 text-center text-slate-400">Cargando detalle...</p>
             ) : (
@@ -484,7 +472,7 @@ function ChoferesContenido() {
                   <button onClick={() => setDetalle(null)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 mb-6 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 text-sm">
                   <Campo label="Documento" valor={detalle.chofer.documento} />
                   <Campo label="Licencia" valor={detalle.chofer.licencia} />
                   <Campo label="Teléfono/Celular" valor={detalle.chofer.telefono} />
@@ -513,7 +501,7 @@ function ChoferesContenido() {
                       ))}
                     </ul>
                   )}
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <input placeholder="Nombre del familiar *" value={nuevaRef.nombre} onChange={e => setNuevaRef({ ...nuevaRef, nombre: e.target.value })} className={`${inputCls} text-sm`} />
                     <input placeholder="Parentesco" value={nuevaRef.parentesco} onChange={e => setNuevaRef({ ...nuevaRef, parentesco: e.target.value })} className={`${inputCls} text-sm`} />
                     <input placeholder="N° de contacto" value={nuevaRef.telefono} onChange={e => setNuevaRef({ ...nuevaRef, telefono: e.target.value })} className={`${inputCls} text-sm`} />
@@ -557,7 +545,7 @@ function ChoferesContenido() {
                       </tbody>
                     </table>
                   )}
-                  <div className="grid grid-cols-3 gap-2 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
                     <input type="date" title="Fecha de inicio" value={nuevoSeg.fecha_inicio} onChange={e => setNuevoSeg({ ...nuevoSeg, fecha_inicio: e.target.value })} className={`${inputCls} text-sm`} />
                     <input type="date" min={nuevoSeg.fecha_inicio || undefined} title="Fecha de expiración" value={nuevoSeg.fecha_expiracion} onChange={e => setNuevoSeg({ ...nuevoSeg, fecha_expiracion: e.target.value })} className={`${inputCls} text-sm`} />
                     <button type="button" onClick={agregarSeguroIndividual} className="px-3 py-2 rounded-lg text-xs font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 hover:bg-violet-200 whitespace-nowrap">+ Registrar seguro</button>
@@ -603,7 +591,7 @@ function ChoferesContenido() {
                       )})}
                     </ul>
                   )}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
                     <input type="date" title="Fecha *" value={nuevaMulta.fecha} onChange={e => setNuevaMulta({ ...nuevaMulta, fecha: e.target.value })} className={`${inputCls} text-sm`} />
                     <input placeholder="Nro Viaje" value={nuevaMulta.nro_viaje} onChange={e => setNuevaMulta({ ...nuevaMulta, nro_viaje: e.target.value })} className={`${inputCls} text-sm`} />
                     <select value={nuevaMulta.flota_id} onChange={e => setNuevaMulta({ ...nuevaMulta, flota_id: e.target.value, placa: '' })} className={`${inputCls} text-sm`}>
@@ -612,7 +600,7 @@ function ChoferesContenido() {
                     </select>
                     <input placeholder="Placa manual" value={nuevaMulta.placa} onChange={e => setNuevaMulta({ ...nuevaMulta, placa: e.target.value.toUpperCase(), flota_id: '' })} disabled={!!nuevaMulta.flota_id} className={`${inputCls} text-sm font-mono ${nuevaMulta.flota_id ? 'bg-slate-100 dark:bg-slate-700 opacity-60' : ''}`} />
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 mt-2">
                     <input placeholder="Motivo *" value={nuevaMulta.motivo} onChange={e => setNuevaMulta({ ...nuevaMulta, motivo: e.target.value })} className={`${inputCls} text-sm`} />
                     <input type="number" min={0} step="any" placeholder="Importe multa" value={nuevaMulta.monto} onChange={e => setNuevaMulta({ ...nuevaMulta, monto: e.target.value })} className={`${inputCls} text-sm`} />
                     <input type="number" min={0} step="any" placeholder="Importe pagado" value={nuevaMulta.importe_pagado} onChange={e => setNuevaMulta({ ...nuevaMulta, importe_pagado: e.target.value })} className={`${inputCls} text-sm`} />

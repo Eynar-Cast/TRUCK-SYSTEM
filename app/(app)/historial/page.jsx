@@ -139,9 +139,6 @@ export default function HistorialPage() {
               {f.label}
             </button>
           ))}
-          <button onClick={() => window.print()} className="px-4 py-1.5 rounded-lg text-sm font-medium bg-slate-900 text-white hover:bg-slate-800">
-            🖨️ Imprimir
-          </button>
         </div>
       </div>
 
@@ -173,25 +170,6 @@ export default function HistorialPage() {
         </div>
         <button onClick={limpiarFiltros} className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-200 text-slate-700 dark:text-slate-300 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600">Limpiar</button>
       </div>
-
-      {totalCompras >= UMBRAL_LIMPIEZA && (
-        <div className="mb-5 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex items-start gap-3">
-          <div className="text-2xl">🧹</div>
-          <div className="flex-1">
-            <p className="font-semibold text-amber-800 dark:text-amber-200">Es hora de limpiar</p>
-            <p className="text-sm text-amber-700 dark:text-amber-300 mt-0.5">
-              El sistema acumula <span className="font-bold">{totalCompras.toLocaleString()}</span> compras (umbral de {UMBRAL_LIMPIEZA.toLocaleString()}).
-              Considera hacer una limpieza para mantener el rendimiento. No olvides descargar tus respaldos antes.
-            </p>
-          </div>
-          <a
-            href="/limpiar-datos"
-            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white whitespace-nowrap mt-0.5"
-          >
-            Ir a limpiar
-          </a>
-        </div>
-      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
         <StatCard titulo="Total compras" valor={pagination.totalCount} icono="📦" color="blue" />
@@ -305,7 +283,7 @@ export default function HistorialPage() {
               <div className="p-3 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-sm">{errorDetalle}</div>
             ) : (
               <div className="grid gap-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-3">
                     <div className="text-[11px] text-slate-400 dark:text-slate-500 font-semibold uppercase mb-1">Producto</div>
                     <div className="font-bold text-slate-900 dark:text-slate-100">{detalle.producto}</div>
@@ -328,7 +306,7 @@ export default function HistorialPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-3">
                     <div className="text-[11px] text-slate-400 dark:text-slate-500 font-semibold uppercase mb-1">Factura</div>
                     <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${detalle.tiene_factura ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'}`}>

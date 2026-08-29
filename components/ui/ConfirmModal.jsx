@@ -16,7 +16,7 @@ export default function ConfirmModal({
       className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onCancelar(); }}
     >
-      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm p-6 shadow-xl">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm p-4 sm:p-6 shadow-xl">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{titulo}</h3>
           <button onClick={onCancelar} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 text-xl">✕</button>

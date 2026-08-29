@@ -1,8 +1,7 @@
-import { put } from '@vercel/blob';
 import { NextResponse } from 'next/server';
 import { obtenerSesion } from '@/lib/session';
 
-const MAX_BYTES = 4 * 1024 * 1024; // 4 MB (límite seguro por debajo del máximo de la función)
+const MAX_BYTES = 4 * 1024 * 1024; // 4 MB
 
 export async function POST(request) {
   const sesion = await obtenerSesion();
@@ -24,14 +23,20 @@ export async function POST(request) {
   }
 
   try {
-    const blob = await put(file.name, file, {
-      access: 'public',
-      addRandomSuffix: true,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
+    // Guardar en Neon como base64 data URL (TEXT) — se almacena directo en foto_factura/foto_qr etc.
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const base64 = buffer.toString('base64');
+    const dataUrl = `data:${file.type};base64,${base64}`;
+    // Respuesta compatible con el cliente anterior que esperaba blob.url
+    return NextResponse.json({
+      url: dataUrl,
+      downloadUrl: dataUrl,
+      pathname: file.name,
+      contentType: file.type,
+      contentDisposition: `inline; filename="${file.name}"`,
     });
-    return NextResponse.json(blob);
   } catch (error) {
-    console.error('Error subiendo a Blob:', error);
-    return NextResponse.json({ error: 'No se pudo subir la imagen' }, { status: 500 });
+    console.error('Error guardando imagen en Neon:', error);
+    return NextResponse.json({ error: 'No se pudo guardar la imagen' }, { status: 500 });
   }
 }

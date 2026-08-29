@@ -216,41 +216,17 @@ function SegurosContenido() {
           <p className="text-slate-500 dark:text-slate-400 text-sm">Pólizas asociadas a los vehículos por placa · estado automático</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => window.print()} className="bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-4 py-2 rounded-lg text-sm">🖨️ Imprimir</button>
           <button onClick={() => descargar(`/api/seguros/exportar?${params().toString()}`)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg text-sm">⬇️ Exportar Excel</button>
           <button onClick={abrirNuevo} className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm">➕ Nuevo seguro</button>
         </div>
-      </div>
-
-      {/* Alertas */}
-      {(alertas.vencidos > 0 || alertas.proximos > 0) && (
-        <div className="grid md:grid-cols-2 gap-3 mb-4 no-print">
-          {alertas.vencidos > 0 && (
-            <button onClick={() => { setFEstado('Vencido'); }} className="text-left p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-sm hover:border-red-400 transition">
-              ⚠️ <b>{alertas.vencidos}</b> póliza(s) vencida(s). Clic para verlas.
-            </button>
-          )}
-          {alertas.proximos > 0 && (
-            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-300 text-sm">
-              📅 <b>{alertas.proximos}</b> póliza(s) vence(n) en los próximos 30 días.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Indicadores permitidos en esta fase */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-        <StatCard titulo="Pólizas vencidas" valor={alertas.vencidos} icono="⚠️" color="red" />
-        <StatCard titulo="Por vencer (30 días)" valor={alertas.proximos} icono="📅" color="amber" />
-        <StatCard titulo="Pólizas listadas" valor={pagination.totalCount} icono="🛡️" color="blue" />
       </div>
 
       {error && <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-sm no-print">{error}</div>}
 
       {/* Filtros */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 mb-4 no-print">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          <input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Buscar: placa, aseguradora, póliza…" className={`${inputCls} col-span-2`} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          <input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Buscar: placa, aseguradora, póliza…" className={`${inputCls} sm:col-span-2`} />
           <select value={fEstado} onChange={e => { setFEstado(e.target.value); setPage(1); }} className={inputCls}>
             <option value="">Estado: todos</option>
             <option value="Vigente">Vigente</option>
@@ -325,7 +301,7 @@ function SegurosContenido() {
       {modalAbierto && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setModalAbierto(false); }}>
-          <form onSubmit={guardar} className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg p-6 max-h-[92vh] overflow-y-auto">
+          <form onSubmit={guardar} className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg p-4 sm:p-4 sm:p-6 max-h-[92vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{editando ? `Editar póliza ${editando.poliza}` : 'Nuevo seguro'}</h3>
               <button type="button" onClick={() => setModalAbierto(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
@@ -333,7 +309,7 @@ function SegurosContenido() {
 
             {errorModal && <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-sm">{errorModal}</div>}
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Placa del vehículo *</label>
                 <select required value={form.placa} onChange={e => setForm({ ...form, placa: e.target.value })} className={`${inputCls} font-mono`}>

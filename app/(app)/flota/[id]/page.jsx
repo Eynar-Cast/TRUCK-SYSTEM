@@ -61,7 +61,6 @@ export default function FlotaDetallePage() {
     <div className="max-w-6xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6 no-print">
         <Link href="/flota" className="text-blue-600 hover:underline text-sm">← Volver al reporte de camiones</Link>
-        <button onClick={() => window.print()} className="bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-4 py-2 rounded-lg text-sm">🖨️ Imprimir ficha</button>
       </div>
 
       {/* Encabezado */}
@@ -309,7 +308,7 @@ function FormularioSeguroCarga({ vehiculoId, onGuardado, registros }) {
           ])}
         />
       )}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 mt-3">
         <input placeholder="Póliza / datos *" value={form.poliza} onChange={e => setForm({ ...form, poliza: e.target.value })} className={`${inputCls} text-sm col-span-2 md:col-span-1`} />
         <input type="date" title="Fecha de trámite" value={form.fecha_tramite} onChange={e => setForm({ ...form, fecha_tramite: e.target.value })} className={`${inputCls} text-sm`} />
         <input type="date" title="Inicio" value={form.fecha_inicio} onChange={e => setForm({ ...form, fecha_inicio: e.target.value })} className={`${inputCls} text-sm`} />

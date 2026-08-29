@@ -11,8 +11,10 @@ const TIPOS = [
   { id: 'compras', label: '🛒 Compras' },
   { id: 'devoluciones', label: '🔄 Devoluciones' },
   { id: 'gastos_choferes', label: '💸 Gastos de conductores' },
-  // Plantilla idéntica al Excel control-de-flota-vehicular.xlsx
+  // Plantilla idéntica al Excel control-de-flota-vehicular.xlsx + Viajes/Impuestos básicos
   { id: 'camiones', label: '🚚 Flota' },
+  { id: 'viajes', label: '🛣️ Viajes' },
+  { id: 'impuestos', label: '🧾 Impuestos' },
   { id: 'seguros_camiones', label: '🛡️ Seguros' },
   { id: 'conductores', label: '👨‍✈️ Conductores' },
   { id: 'multas', label: '🚨 Multas' },
@@ -55,7 +57,6 @@ export default function ReportesPage() {
           <p className="text-slate-500 dark:text-slate-400 text-sm">Selecciona el módulo y el mes que deseas consultar</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => window.print()} disabled={!data} className="bg-slate-200 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-4 py-2 rounded-lg text-sm disabled:opacity-50">🖨️ Imprimir</button>
           <button onClick={() => descargar(`/api/reportes/mensual/exportar?tipo=${tipo}&mes=${mes}`)} disabled={!data}
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg text-sm disabled:opacity-50">⬇️ Exportar Excel</button>
         </div>

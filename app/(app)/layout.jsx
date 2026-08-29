@@ -2,16 +2,8 @@ import { redirect } from 'next/navigation';
 import { obtenerSesion } from '@/lib/session';
 import Sidebar from '@/components/nav/Sidebar';
 import MobileHeader from '@/components/nav/MobileHeader';
-
-/**
- * AppLayout — layout principal de la aplicación (post-login).
- *
- * Lee la sesión en el servidor y pasa los items de navegación
- * a los componentes Sidebar (desktop) y MobileHeader (móvil).
- *
- * - Usuarios normales ven: Nueva compra, Mis compras, Devoluciones, Gasto de chofer.
- * - Administradores ven: Historial global, Choferes, Gastos choferes, Usuarios.
- */
+import StorageAlert from '@/components/ui/StorageAlert';
+import StorageWidget from '@/components/ui/StorageWidget';
 
 const NAV_USER = [
   { href: '/nueva-compra', label: 'Nueva compra', icon: '➕' },
@@ -24,37 +16,37 @@ const NAV_USER = [
 const NAV_ADMIN = [
   { href: '/historial', label: 'Historial global', icon: '📊' },
   { href: '/flota', label: 'Flota / Camiones', icon: '🚚' },
+  { href: '/viajes', label: 'Viajes', icon: '🛣️' },
+  { href: '/impuestos', label: 'Impuestos', icon: '🧾' },
   { href: '/seguros', label: 'Seguros', icon: '🛡️' },
   { href: '/choferes', label: 'Conductores', icon: '👨‍✈️' },
   { href: '/reportes', label: 'Reportes mensuales', icon: '📅' },
   { href: '/gastos-choferes', label: 'Gastos conductores', icon: '📋' },
   { href: '/usuarios', label: 'Usuarios', icon: '👥' },
   { href: '/catalogos', label: 'Catálogos', icon: '🏷️' },
-  { href: '/exportar', label: 'Exportar Datos', icon: '⬇️' },
-  { href: '/limpiar-datos', label: 'Limpiar Base de Datos', icon: '🗑️' },
 ];
 
 export default async function AppLayout({ children }) {
   const sesion = await obtenerSesion();
-
-  if (!sesion) {
-    redirect('/login?motivo=sesion');
-  }
-
+  if (!sesion) redirect('/login?motivo=sesion');
   const items = sesion.role === 'admin' ? NAV_ADMIN : NAV_USER;
   const nombre = sesion.nombre;
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex">
-      {/* Desktop sidebar */}
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 md:grid md:grid-cols-[240px_1fr]">
       <Sidebar items={items} nombre={nombre} />
-
-      {/* Contenido principal */}
-      <div className="flex-1 flex flex-col min-h-screen min-w-0 md:ml-60">
-        {/* Mobile header */}
-        <MobileHeader items={items} nombre={nombre} />
-
-        <main className="flex-1 p-4 md:p-6 lg:p-8 min-w-0 overflow-x-hidden">{children}</main>
+      <div className="flex flex-col min-h-screen min-w-0">
+        <div className="sticky top-0 z-30">
+          <MobileHeader items={items} nombre={nombre} />
+          <StorageAlert />
+        </div>
+        <main className="flex-1 p-4 md:p-6 min-w-0 pb-8">{children}</main>
+        {sesion.role === 'admin' && (
+          <footer className="px-4 md:px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div className="max-w-5xl mx-auto">
+              <StorageWidget />
+            </div>
+          </footer>
+        )}
       </div>
     </div>
   );
