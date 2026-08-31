@@ -44,10 +44,6 @@ export default function ImpuestosPage(){
     await fetch(`/api/impuestos/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'toggle'})});
     await cargar();
   }
-  async function eliminar(id){
-    if(!confirm('¿Eliminar registro de impuesto?')) return;
-    await fetch(`/api/impuestos/${id}`,{method:'DELETE'}); await cargar();
-  }
 
   const inputCls='w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100';
 
@@ -99,24 +95,23 @@ export default function ImpuestosPage(){
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/60 border-b-2 border-slate-200 dark:border-slate-800 text-left whitespace-nowrap">
-                  {['Placa','Concepto','Monto','Fecha registro','Pagado','Fecha pago','Obs',''].map(h=>(
-                    <th key={h} className="px-3 py-3 text-[11px] font-semibold text-slate-500 uppercase">{h}</th>
+                  {['Placa','Concepto','Monto','Fecha registro','Pagado','Fecha pago','Obs'].map(h=>(
+                    <th key={h} className="px-3 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {impuestos.map(r=>(
                   <tr key={r.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <td className="px-3 py-2 font-mono font-bold">{r.placa}</td>
-                    <td className="px-3 py-2">{r.concepto||'—'}</td>
-                    <td className="px-3 py-2 font-bold">{r.monto!=null? `Bs. ${Number(r.monto).toLocaleString('es-BO')}`:'—'}</td>
-                    <td className="px-3 py-2">{r.fecha_registro? new Date(r.fecha_registro).toLocaleDateString('es-BO'):'—'}</td>
+                    <td className="px-3 py-2 font-mono font-bold text-slate-900 dark:text-slate-100">{r.placa}</td>
+                    <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{r.concepto||'—'}</td>
+                    <td className="px-3 py-2 font-bold text-slate-900 dark:text-slate-100">{r.monto!=null? `Bs. ${Number(r.monto).toLocaleString('es-BO')}`:'—'}</td>
+                    <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{r.fecha_registro? new Date(r.fecha_registro).toLocaleDateString('es-BO'):'—'}</td>
                     <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${r.pagado?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'}`}>{r.pagado?'Pagado':'Pendiente'}</span></td>
-                    <td className="px-3 py-2">{r.fecha_pago? new Date(r.fecha_pago).toLocaleDateString('es-BO'):'—'}</td>
-                    <td className="px-3 py-2 max-w-[160px] truncate">{r.observaciones||'—'}</td>
+                    <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{r.fecha_pago? new Date(r.fecha_pago).toLocaleDateString('es-BO'):'—'}</td>
+                    <td className="px-3 py-2 max-w-[160px] truncate text-slate-700 dark:text-slate-300">{r.observaciones||'—'}</td>
                     <td className="px-3 py-2 flex gap-1">
                       <button onClick={()=>togglePagado(r.id)} className={`px-2 py-1 rounded-lg text-xs font-medium ${r.pagado?'bg-amber-100 text-amber-700':'bg-green-100 text-green-700'}`}>{r.pagado?'Marcar pendiente':'Marcar pagado'}</button>
-                      <button onClick={()=>eliminar(r.id)} className="px-2 py-1 rounded-lg text-xs bg-red-100 text-red-600">Quitar</button>
                     </td>
                   </tr>
                 ))}
