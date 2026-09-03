@@ -69,9 +69,12 @@ export default function GastoChoferPage() {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Placa (opcional, asocia gasto a camión)</label>
-          <input list="placas-gasto" value={placa} onChange={e=>setPlaca(e.target.value.toUpperCase())} className={`${inputCls} font-mono`} placeholder="Ej: 1234-ABC" />
-          <datalist id="placas-gasto">{flota.map(f=><option key={f.id} value={f.placa} />)}</datalist>
+          <label className="block text-sm font-medium mb-1 dark:text-slate-300">Placa (opcional, asocia gasto a camión)</label>
+          <select value={placa} onChange={e=>setPlaca(e.target.value)} className={`${inputCls} font-mono`}>
+            <option value="">— Sin placa / no asociar —</option>
+            {flota.map(f=><option key={f.id} value={f.placa}>{f.placa} — {f.marca} {f.modelo}</option>)}
+          </select>
+          {flota.length===0 && <p className="text-[11px] text-amber-600 mt-1">No hay camiones. Registra en Flota primero.</p>}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div><label className="block text-sm font-medium mb-1">Nombre del gasto *</label><input value={nombre} onChange={e => setNombre(e.target.value)} className={inputCls} placeholder="Ej: Combustible, Peaje..." /></div>

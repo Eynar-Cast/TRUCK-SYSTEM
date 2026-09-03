@@ -71,8 +71,11 @@ export default function NuevaCompraPage() {
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Placa (opcional — asocia repuesto a camión)</label>
-          <input list="placas-list" value={placa} onChange={e=>setPlaca(e.target.value.toUpperCase())} className={`${inputCls} font-mono`} placeholder="Ej: 1234-ABC" />
-          <datalist id="placas-list">{flota.map(f=><option key={f.id} value={f.placa} />)}</datalist>
+          <select value={placa} onChange={e=>setPlaca(e.target.value)} className={`${inputCls} font-mono`}>
+            <option value="">— Sin placa / no asociar —</option>
+            {flota.map(f=><option key={f.id} value={f.placa}>{f.placa} — {f.marca} {f.modelo}</option>)}
+          </select>
+          {flota.length===0 && <p className="text-[11px] text-amber-600 mt-1">No hay camiones. Registra en Flota primero.</p>}
         </div>
         <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4 bg-slate-50 dark:bg-slate-800/60 space-y-3">
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
