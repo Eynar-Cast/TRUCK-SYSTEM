@@ -36,6 +36,8 @@ export default function MaintenanceAlert({ compact=false }){
   }
 
   if(diasRestantes===null) return null;
+  // Banner superior solo visible cuando vencido; al marcar realizado desaparece automático
+  if(!compact && !vencido) return null;
 
   if(compact){
     return (
