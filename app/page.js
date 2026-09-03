@@ -8,5 +8,7 @@ export default async function Home() {
     redirect('/login');
   }
 
-  redirect(sesion.role === 'admin' ? '/historial' : '/nueva-compra');
+  if (sesion.role === 'admin') redirect('/historial');
+  if (sesion.role === 'secretaria') redirect('/flota');
+  redirect('/nueva-compra');
 }

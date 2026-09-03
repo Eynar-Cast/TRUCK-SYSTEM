@@ -12,7 +12,7 @@ const COLUMNAS = [
 /** Exportación a Excel del Reporte de Seguros (respeta los filtros en pantalla). */
 export async function GET(request) {
   const sesion = await obtenerSesion();
-  if (!sesion || sesion.role !== 'admin') {
+  if (!sesion || !['admin','secretaria'].includes(sesion.role)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 

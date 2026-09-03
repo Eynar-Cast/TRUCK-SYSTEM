@@ -16,6 +16,7 @@ export default function UsuariosPage() {
   const [nuUser, setNuUser] = useState('');
   const [nuPass, setNuPass] = useState('');
   const [nuCargo, setNuCargo] = useState('');
+  const [nuRole, setNuRole] = useState('user');
   const [guardando, setGuardando] = useState(false);
 
   const [modalPass, setModalPass] = useState(null); // usuario seleccionado
@@ -46,20 +47,26 @@ export default function UsuariosPage() {
       return;
     }
     setGuardando(true);
-    const res = await fetch('/api/usuarios', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: nuUser, password: nuPass, nombre: nuNombre, cargo: nuCargo }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error || 'Error al crear usuario');
+    try {
+      const res = await fetch('/api/usuarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: nuUser, password: nuPass, nombre: nuNombre, cargo: nuCargo, role: nuRole }),
+      });
+      let data = {};
+      try { data = await res.json(); } catch { data = { error: `Error del servidor (${res.status}). Revisa logs y que la migración 006 esté aplicada.` }; }
+      if (!res.ok) {
+        setError(data.error || 'Error al crear usuario');
+        setGuardando(false);
+        return;
+      }
+      setModalNuevo(false); setGuardando(false);
+      setNuNombre(''); setNuUser(''); setNuPass(''); setNuCargo(''); setNuRole('user');
+      await cargar();
+    } catch (e) {
+      setError(e.message || 'No se pudo conectar con el servidor');
       setGuardando(false);
-      return;
     }
-    setModalNuevo(false); setGuardando(false);
-    setNuNombre(''); setNuUser(''); setNuPass(''); setNuCargo('');
-    await cargar();
   }
 
   async function toggleUsuario(u) {
@@ -119,6 +126,7 @@ export default function UsuariosPage() {
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Nombre</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Usuario</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Cargo</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Rol</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Compras</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Estado</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">Creado</th>
@@ -138,6 +146,11 @@ export default function UsuariosPage() {
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{u.username}</td>
                     <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{u.cargo || '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${u.role==='secretaria' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                        {u.role==='secretaria' ? 'Secretaria' : 'Compras'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{u.n_compras}</span>
                     </td>
@@ -196,10 +209,19 @@ export default function UsuariosPage() {
                   placeholder="Mínimo 6 caracteres" />
               </div>
               <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Rol *</label>
+                <select value={nuRole} onChange={e => setNuRole(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100">
+                  <option value="user">Compras / Repuestos / Devoluciones / Gastos chofer (usuario)</option>
+                  <option value="secretaria">Secretaria ARIAS — Flota, Viajes, Seguros, Conductores, Reportes, Impuestos, Catálogo</option>
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">Admin mantiene todo. Secretaria no ve Historial global, Gastos conductores ni Usuarios.</p>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cargo / Área</label>
                 <input value={nuCargo} onChange={e => setNuCargo(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 rounded-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                  placeholder="Ej: Almacén, Compras..." />
+                  placeholder="Ej: Almacén, Compras, Secretaria ARIAS..." />
               </div>
             </div>
             <div className="flex gap-2 justify-end mt-6">

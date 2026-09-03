@@ -5,7 +5,7 @@ import { esID } from '@/lib/utils';
 
 export async function PUT(request, { params }) {
   const sesion = await obtenerSesion();
-  if (!sesion || sesion.role !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!sesion || !['admin','secretaria'].includes(sesion.role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   const { id } = await params;
   if (!esID(id)) return NextResponse.json({ error: 'Viaje no encontrado' }, { status: 404 });
   const body = await request.json();
@@ -33,7 +33,7 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   const sesion = await obtenerSesion();
-  if (!sesion || sesion.role !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!sesion || !['admin','secretaria'].includes(sesion.role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   const { id } = await params;
   if (!esID(id)) return NextResponse.json({ error: 'Viaje no encontrado' }, { status: 404 });
   const rows = await query('DELETE FROM viajes WHERE id=$1 RETURNING id', [id]);

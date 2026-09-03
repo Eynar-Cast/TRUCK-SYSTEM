@@ -53,7 +53,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   const sesion = await obtenerSesion();
-  if (!sesion || sesion.role !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!sesion || !['admin','secretaria'].includes(sesion.role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   try {
     await asegurarTablaViajes();
     const body = await request.json();

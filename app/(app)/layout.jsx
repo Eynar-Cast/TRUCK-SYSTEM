@@ -13,6 +13,17 @@ const NAV_USER = [
   { href: '/mis-gastos', label: 'Mis gastos de chofer', icon: '💸' },
 ];
 
+const NAV_SECRETARIA = [
+  { href: '/flota', label: 'Flota / Camiones', icon: '🚚' },
+  { href: '/viajes', label: 'Viajes', icon: '🛣️' },
+  { href: '/seguros', label: 'Seguros', icon: '🛡️' },
+  { href: '/choferes', label: 'Conductores', icon: '👨‍✈️' },
+  { href: '/reportes', label: 'Reportes mensuales', icon: '📅' },
+  { href: '/impuestos', label: 'Impuestos', icon: '🧾' },
+  { href: '/catalogos', label: 'Catálogos', icon: '🏷️' },
+  { href: '/gastos-placa', label: 'Gastos por placa', icon: '🔍' },
+];
+
 const NAV_ADMIN = [
   { href: '/historial', label: 'Historial global', icon: '📊' },
   { href: '/flota', label: 'Flota / Camiones', icon: '🚚' },
@@ -22,6 +33,7 @@ const NAV_ADMIN = [
   { href: '/choferes', label: 'Conductores', icon: '👨‍✈️' },
   { href: '/reportes', label: 'Reportes mensuales', icon: '📅' },
   { href: '/gastos-choferes', label: 'Gastos conductores', icon: '📋' },
+  { href: '/gastos-placa', label: 'Gastos por placa', icon: '🔍' },
   { href: '/usuarios', label: 'Usuarios', icon: '👥' },
   { href: '/catalogos', label: 'Catálogos', icon: '🏷️' },
 ];
@@ -29,7 +41,9 @@ const NAV_ADMIN = [
 export default async function AppLayout({ children }) {
   const sesion = await obtenerSesion();
   if (!sesion) redirect('/login?motivo=sesion');
-  const items = sesion.role === 'admin' ? NAV_ADMIN : NAV_USER;
+  let items = NAV_USER;
+  if (sesion.role === 'admin') items = NAV_ADMIN;
+  else if (sesion.role === 'secretaria') items = NAV_SECRETARIA;
   const nombre = sesion.nombre;
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 md:grid md:grid-cols-[240px_1fr]">

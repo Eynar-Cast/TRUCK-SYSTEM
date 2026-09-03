@@ -27,7 +27,7 @@ function validarFechas(body) {
 
 export async function POST(request, { params }) {
   const sesion = await obtenerSesion();
-  if (!sesion || sesion.role !== 'admin') {
+  if (!sesion || !['admin','secretaria'].includes(sesion.role)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
@@ -56,7 +56,7 @@ export async function POST(request, { params }) {
 
 export async function DELETE(request, { params }) {
   const sesion = await obtenerSesion();
-  if (!sesion || sesion.role !== 'admin') {
+  if (!sesion || !['admin','secretaria'].includes(sesion.role)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 

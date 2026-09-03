@@ -33,7 +33,9 @@ function LoginForm() {
       }
 
       // Login correcto: redirige según el rol
-      router.push(data.role === 'admin' ? '/historial' : '/nueva-compra');
+      if (data.role === 'admin') router.push('/historial');
+      else if (data.role === 'secretaria') router.push('/flota');
+      else router.push('/nueva-compra');
       router.refresh();
     } catch (err) {
       setError('No se pudo conectar con el servidor');

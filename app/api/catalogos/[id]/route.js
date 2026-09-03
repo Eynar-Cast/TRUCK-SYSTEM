@@ -5,7 +5,7 @@ import { esID } from '@/lib/utils';
 
 export async function PUT(request, { params }) {
   const sesion = await obtenerSesion();
-  if (!sesion || sesion.role !== 'admin') {
+  if (!sesion || !['admin','secretaria'].includes(sesion.role)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
