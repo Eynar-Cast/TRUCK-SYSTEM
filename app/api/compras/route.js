@@ -22,7 +22,7 @@ export async function GET(request) {
   let whereClauses = ['1=1'];
   const params = [];
 
-  if (sesion.role !== 'admin') {
+  if (!['admin','supervisor'].includes(sesion.role)) {
     params.push(sesion.id);
     whereClauses.push(`user_id = $${params.length}`);
   } else if (userId) {

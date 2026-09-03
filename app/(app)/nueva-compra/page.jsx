@@ -85,8 +85,8 @@ export default function NuevaCompraPage() {
         <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4 bg-slate-50 dark:bg-slate-800/60 space-y-3">
           <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Tipo de pago *</label>
           <div className="flex gap-4 flex-wrap">
-            <label className="flex items-center gap-2 text-sm"><input type="radio" className="accent-blue-600" checked={tipoPago==='fisico'} onChange={()=>setTipoPago('fisico')} /> Pago físico (efectivo)</label>
-            <label className="flex items-center gap-2 text-sm"><input type="radio" className="accent-blue-600" checked={tipoPago==='qr'} onChange={()=>setTipoPago('qr')} /> Transferencia QR</label>
+            <label className="flex items-center gap-2 text-sm dark:text-slate-200"><input type="radio" className="accent-blue-600" checked={tipoPago==='fisico'} onChange={()=>setTipoPago('fisico')} /> Pago físico (efectivo)</label>
+            <label className="flex items-center gap-2 text-sm dark:text-slate-200"><input type="radio" className="accent-blue-600" checked={tipoPago==='qr'} onChange={()=>setTipoPago('qr')} /> Transferencia QR</label>
           </div>
           <input value={numeroComprobante} onChange={e=>setNumeroComprobante(e.target.value)} className={inputCls} placeholder="Nº Comprobante / Nº Transferencia / QR (texto)" />
         </div>

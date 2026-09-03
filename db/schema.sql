@@ -9,7 +9,7 @@ CREATE TABLE usuarios (
   password_hash TEXT NOT NULL,
   nombre        TEXT NOT NULL,
   cargo         TEXT,
-   role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin','secretaria')),
+   role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin','secretaria','supervisor')),
   activo        BOOLEAN NOT NULL DEFAULT TRUE,
   creado        TIMESTAMPTZ NOT NULL DEFAULT now()
 );

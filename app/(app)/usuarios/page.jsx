@@ -147,8 +147,8 @@ export default function UsuariosPage() {
                     <td className="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{u.username}</td>
                     <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{u.cargo || '—'}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${u.role==='secretaria' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
-                        {u.role==='secretaria' ? 'Secretaria' : 'Compras'}
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${u.role==='secretaria' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : u.role==='supervisor' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                        {u.role==='secretaria' ? 'Secretaria' : u.role==='supervisor' ? 'Supervisor' : 'Compras'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -213,9 +213,10 @@ export default function UsuariosPage() {
                 <select value={nuRole} onChange={e => setNuRole(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100">
                   <option value="user">Compras / Repuestos / Devoluciones / Gastos chofer (usuario)</option>
-                  <option value="secretaria">Secretaria  — Flota, Viajes, Seguros, Conductores, Reportes, Impuestos, Catálogo</option>
+                  <option value="secretaria">Secretaria — Flota, Viajes, Seguros, Conductores, Reportes, Impuestos, Catálogo</option>
+                  <option value="supervisor">Supervisor — Secretaria + Historial global y Gastos conductores</option>
                 </select>
-                <p className="text-[11px] text-slate-400 mt-1">Admin mantiene todo. Secretaria no ve Historial global, Gastos conductores ni Usuarios.</p>
+                <p className="text-[11px] text-slate-400 mt-1">Admin todo. Secretaria 8 módulos. Supervisor 10 módulos (secretaria + historial y gastos).</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cargo / Área</label>

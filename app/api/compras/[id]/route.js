@@ -49,8 +49,8 @@ export async function GET(_request, { params }) {
 
   const compra = rows[0];
 
-  // Seguridad: usuario normal solo ve sus propias compras
-  if (sesion.role !== 'admin' && compra.user_id !== sesion.id) {
+  // Seguridad: usuario normal solo ve sus propias compras; supervisor/admin ven todas
+  if (!['admin','supervisor'].includes(sesion.role) && compra.user_id !== sesion.id) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 

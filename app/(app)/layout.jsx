@@ -24,6 +24,19 @@ const NAV_SECRETARIA = [
   { href: '/gastos-placa', label: 'Gastos por placa', icon: '🔍' },
 ];
 
+const NAV_SUPERVISOR = [
+  { href: '/historial', label: 'Historial global', icon: '📊' },
+  { href: '/flota', label: 'Flota / Camiones', icon: '🚚' },
+  { href: '/viajes', label: 'Viajes', icon: '🛣️' },
+  { href: '/seguros', label: 'Seguros', icon: '🛡️' },
+  { href: '/choferes', label: 'Conductores', icon: '👨‍✈️' },
+  { href: '/reportes', label: 'Reportes mensuales', icon: '📅' },
+  { href: '/impuestos', label: 'Impuestos', icon: '🧾' },
+  { href: '/gastos-choferes', label: 'Gastos conductores', icon: '📋' },
+  { href: '/gastos-placa', label: 'Gastos por placa', icon: '🔍' },
+  { href: '/catalogos', label: 'Catálogos', icon: '🏷️' },
+];
+
 const NAV_ADMIN = [
   { href: '/historial', label: 'Historial global', icon: '📊' },
   { href: '/flota', label: 'Flota / Camiones', icon: '🚚' },
@@ -43,6 +56,7 @@ export default async function AppLayout({ children }) {
   if (!sesion) redirect('/login?motivo=sesion');
   let items = NAV_USER;
   if (sesion.role === 'admin') items = NAV_ADMIN;
+  else if (sesion.role === 'supervisor') items = NAV_SUPERVISOR;
   else if (sesion.role === 'secretaria') items = NAV_SECRETARIA;
   const nombre = sesion.nombre;
   return (

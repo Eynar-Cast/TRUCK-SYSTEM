@@ -34,6 +34,7 @@ function LoginForm() {
 
       // Login correcto: redirige según el rol
       if (data.role === 'admin') router.push('/historial');
+      else if (data.role === 'supervisor') router.push('/historial');
       else if (data.role === 'secretaria') router.push('/flota');
       else router.push('/nueva-compra');
       router.refresh();

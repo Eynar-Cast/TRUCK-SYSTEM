@@ -26,8 +26,8 @@ export async function GET(request, { params }) {
 
   const gasto = rows[0];
 
-  // Seguridad: un usuario normal solo ve sus propios gastos
-  if (sesion.role !== 'admin' && gasto.user_id !== sesion.id) {
+  // Seguridad: usuario normal solo ve sus propios; supervisor/admin ven todos
+  if (!['admin','supervisor'].includes(sesion.role) && gasto.user_id !== sesion.id) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
@@ -36,7 +36,7 @@ export async function GET(request, { params }) {
 
 export async function PUT(request, { params }) {
   const sesion = await obtenerSesion();
-  if (!sesion || sesion.role !== 'admin') {
+  if (!sesion || !['admin','supervisor'].includes(sesion.role)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 

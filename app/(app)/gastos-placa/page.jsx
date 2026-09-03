@@ -40,8 +40,10 @@ export default function GastosPlacaPage(){
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 mb-4 flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-xs font-medium mb-1 dark:text-slate-300">Placa</label>
-          <input list="placas-gp" value={placa} onChange={e=>setPlaca(e.target.value.toUpperCase())} className="px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg font-mono text-sm" placeholder="Placa" />
-          <datalist id="placas-gp">{placas.map(p=><option key={p.id} value={p.placa}>{p.marca} {p.modelo}</option>)}</datalist>
+          <select value={placa} onChange={e=>setPlaca(e.target.value)} className="px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg font-mono text-sm min-w-[180px]">
+            <option value="">— Selecciona placa —</option>
+            {placas.map(p=><option key={p.id} value={p.placa}>{p.placa} — {p.marca} {p.modelo}</option>)}
+          </select>
         </div>
         <div>
           <label className="block text-xs font-medium mb-1 dark:text-slate-300">Periodo</label>

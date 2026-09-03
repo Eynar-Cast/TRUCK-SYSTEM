@@ -9,6 +9,7 @@ export default async function Home() {
   }
 
   if (sesion.role === 'admin') redirect('/historial');
+  if (sesion.role === 'supervisor') redirect('/historial');
   if (sesion.role === 'secretaria') redirect('/flota');
   redirect('/nueva-compra');
 }

@@ -79,15 +79,15 @@ export default function GastoChoferPage() {
         </div>
         <div><label className="block text-sm font-medium mb-1">Descripción (opcional)</label><textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} rows={2} className={inputCls} placeholder="Detalles..." /></div>
         <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-800/60 space-y-3">
-          <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={tieneFactura} onChange={e=>setTieneFactura(e.target.checked)} /> ¿Tiene factura?</label>
+          <label className="flex items-center gap-2 text-sm font-semibold dark:text-slate-200"><input type="checkbox" checked={tieneFactura} onChange={e=>setTieneFactura(e.target.checked)} /> ¿Tiene factura?</label>
           <input value={numeroFactura} onChange={e=>setNumeroFactura(e.target.value)} className={inputCls} placeholder="Nº Factura" />
           <input value={enlace} onChange={e=>setEnlace(e.target.value)} className={inputCls} placeholder="Enlace de acceso (URL texto)" />
         </div>
         <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-800/60 space-y-3">
-          <label className="block text-sm font-semibold mb-2">Tipo de pago *</label>
+          <label className="block text-sm font-semibold mb-2 dark:text-slate-200">Tipo de pago *</label>
           <div className="flex gap-4 flex-wrap mb-2">
-            <label className="flex items-center gap-2 text-sm"><input type="radio" checked={tipoPago==='fisico'} onChange={()=>setTipoPago('fisico')} /> Pago físico</label>
-            <label className="flex items-center gap-2 text-sm"><input type="radio" checked={tipoPago==='qr'} onChange={()=>setTipoPago('qr')} /> QR / Transferencia</label>
+            <label className="flex items-center gap-2 text-sm dark:text-slate-200"><input type="radio" checked={tipoPago==='fisico'} onChange={()=>setTipoPago('fisico')} /> Pago físico</label>
+            <label className="flex items-center gap-2 text-sm dark:text-slate-200"><input type="radio" checked={tipoPago==='qr'} onChange={()=>setTipoPago('qr')} /> QR / Transferencia</label>
           </div>
           <input value={numeroComprobante} onChange={e=>setNumeroComprobante(e.target.value)} className={inputCls} placeholder="Nº Comprobante / Transferencia (texto)" />
         </div>

@@ -129,7 +129,7 @@ export default function HistorialPage() {
     const controller = new AbortController();
     fetch('/api/usuarios', { signal: controller.signal })
       .then(r => r.json())
-      .then(d => setUsuarios(d.usuarios || []))
+      .then(d => setUsuarios((d.usuarios || []).filter(u=> Number(u.n_compras)>0)))
       .catch(() => {});
     return () => controller.abort();
   }, []);
@@ -192,20 +192,23 @@ export default function HistorialPage() {
     return map;
   }, [usuarios]);
 
-  // Cálculos pesados memoizados
+  // Cálculos pesados memoizados — saldo neto no negativo
   const estadisticas = useMemo(() => {
-    let totalGastado = 0;
+    let totalGastadoAll = 0;
+    let totalGastadoNeto = 0;
     let totalDev = 0;
     let devueltas = 0;
     for (const c of compras) {
+      totalGastadoAll += Number(c.precio);
       if (c.devuelto) {
         devueltas++;
         totalDev += Number(c.precio);
       } else {
-        totalGastado += Number(c.precio);
+        totalGastadoNeto += Number(c.precio);
       }
     }
-    return { totalGastado, totalDev, devueltas, saldoNeto: totalGastado - totalDev };
+    const saldoNeto = Math.max(0, totalGastadoNeto);
+    return { totalGastado: totalGastadoNeto, totalGastadoAll, totalDev, devueltas, saldoNeto };
   }, [compras]);
 
   function nombreUsuario(id) {

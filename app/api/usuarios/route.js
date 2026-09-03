@@ -38,7 +38,7 @@ export async function POST(request) {
     if (password.length < 6) {
       return NextResponse.json({ error: 'La contraseña debe tener al menos 6 caracteres' }, { status: 400 });
     }
-    const roleFinal = ['user','secretaria'].includes(role) ? role : 'user';
+    const roleFinal = ['user','secretaria','supervisor'].includes(role) ? role : 'user';
 
     const existente = await query('SELECT id FROM usuarios WHERE username = $1', [username.toLowerCase()]);
     if (existente.length > 0) {
