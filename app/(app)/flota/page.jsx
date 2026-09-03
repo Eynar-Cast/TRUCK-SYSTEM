@@ -52,7 +52,7 @@ function BadgeMantenimiento({ estado, titulo }) {
 }
 
 // Componente de fila de tabla memorizado para evitar re-render innecesario
-const FilaVehiculo = ({ v, i, sort, dir, ordenarPor, abrirEditar, toggleActivo }) => {
+const FilaVehiculo = ({ v, i, sort, dir, ordenarPor, abrirEditar, toggleActivo, marcarVendido }) => {
   const aceitesTitulo = useMemo(() => {
     if (!v.aceites_estado) return '';
     return Object.entries(v.aceites_detalle || {})
@@ -102,9 +102,10 @@ const FilaVehiculo = ({ v, i, sort, dir, ordenarPor, abrirEditar, toggleActivo }
           <Link href={`/flota/${v.id}`} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200">🔍 Ver</Link>
           <button onClick={() => abrirEditar(v)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300">✏️ Editar</button>
           <button onClick={() => toggleActivo(v)}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium ${v.activo ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60'}`}>
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium ${v.activo ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-200'}`}>
             {v.activo ? 'Desactivar' : 'Activar'}
           </button>
+          <button onClick={() => marcarVendido(v)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200" title="Marcar como vendido y eliminar">💰 Vendido</button>
         </div>
       </td>
     </tr>
@@ -250,6 +251,15 @@ export default function FlotaPage() {
     await cargar();
   }
 
+  async function marcarVendido(v){
+    const ok = window.confirm(`¿Marcar como VENDIDO y ELIMINAR el camión ${v.placa}? Esta acción elimina el camión y sus seguros asociados. No se puede deshacer.`);
+    if(!ok) return;
+    const res = await fetch(`/api/flota/${v.id}`, { method: 'DELETE' });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok){ setError(data.error || 'No se pudo vender/eliminar'); return; }
+    await cargar();
+  }
+
   const inputCls = 'w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100';
 
   // Cálculos de alertas memoizados
@@ -329,7 +339,7 @@ export default function FlotaPage() {
                 </thead>
                 <tbody>
                   {vehiculos.map((v, i) => (
-                    <FilaVehiculo key={v.id} v={v} i={(pagination.page - 1) * pagination.limit + i} sort={sort} dir={dir} ordenarPor={ordenarPor} abrirEditar={abrirEditar} toggleActivo={toggleActivo} />
+                    <FilaVehiculo key={v.id} v={v} i={(pagination.page - 1) * pagination.limit + i} sort={sort} dir={dir} ordenarPor={ordenarPor} abrirEditar={abrirEditar} toggleActivo={toggleActivo} marcarVendido={marcarVendido} />
                   ))}
                 </tbody>
               </table>

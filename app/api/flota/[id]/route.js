@@ -134,3 +134,24 @@ export async function PUT(request, { params }) {
     throw err;
   }
 }
+
+export async function DELETE(request, { params }) {
+  const sesion = await obtenerSesion();
+  if (!sesion || !['admin','secretaria'].includes(sesion.role)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
+  const { id } = await params;
+  if (!esID(id)) return NextResponse.json({ error: 'Vehículo no encontrado' }, { status: 404 });
+  // Bloquear si está En ruta
+  const cur = await query('SELECT placa FROM flota WHERE id=$1', [id]);
+  if (cur.length===0) return NextResponse.json({ error: 'Vehículo no encontrado' }, { status: 404 });
+  const placa = cur[0].placa;
+  const enRuta = await query(`SELECT id FROM viajes WHERE placa=$1 AND estado IN ('En ruta','Programado') LIMIT 1`, [placa]);
+  if (enRuta.length>0) return NextResponse.json({ error: `No se puede vender: el camión ${placa} está En ruta` }, { status: 409 });
+  // Eliminar seguros asociados por placa (RESTRICT) antes de borrar camión
+  await query('DELETE FROM seguros WHERE placa=$1', [placa]);
+  // llantas/aceites/seguros_carga tienen CASCADE, viajes/impuestos SET NULL
+  const del = await query('DELETE FROM flota WHERE id=$1 RETURNING id', [id]);
+  if (del.length===0) return NextResponse.json({ error: 'No se pudo eliminar' }, { status: 404 });
+  return NextResponse.json({ ok:true, vendido: placa });
+}

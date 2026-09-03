@@ -73,11 +73,20 @@ export default function FlotaDetallePage() {
             Volvo {v.modelo} · {v.tipo} · Año {v.anio ?? '—'}
           </p>
         </div>
-        <span className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap ${
-          !v.activo ? 'bg-slate-200 text-slate-500' :
-          v.estado_vehiculo === 'Seguro Vencido' ? ESTADO_ESTILO.Vencido : ESTADO_ESTILO.Vigente}`}>
-          {v.activo ? v.estado_vehiculo : 'Inactivo'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap ${
+            !v.activo ? 'bg-slate-200 text-slate-500' :
+            v.estado_vehiculo === 'Seguro Vencido' ? ESTADO_ESTILO.Vencido : ESTADO_ESTILO.Vigente}`}>
+            {v.activo ? v.estado_vehiculo : 'Inactivo'}
+          </span>
+          <button onClick={async()=>{
+            if(!confirm(`¿Marcar como VENDIDO y ELIMINAR el camión ${v.placa}?`)) return;
+            const res=await fetch(`/api/flota/${v.id}`,{method:'DELETE'});
+            const d=await res.json().catch(()=>({}));
+            if(!res.ok){ alert(d.error||'No se pudo vender'); return; }
+            window.location.href='/flota';
+          }} className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-300">💰 Vendido / Eliminar</button>
+        </div>
       </div>
 
       {/* Alertas de mantenimiento: ¿ya toca cambiar llantas o aceites? */}
@@ -126,7 +135,7 @@ export default function FlotaDetallePage() {
       {/* Seguros del vehículo */}
       <Seccion titulo={`Seguros del vehículo (${v.placa})`} icono="🛡️"
         subtitulo="Historial de pólizas asociadas por placa · estado calculado automáticamente"
-        className="mb-6">
+        className="mb-4">
         {seguros.length === 0 ? (
           <p className="p-4 text-center text-slate-400 text-sm">Sin seguros registrados para esta placa. Regístralos en el módulo de Seguros.</p>
         ) : (
@@ -141,6 +150,51 @@ export default function FlotaDetallePage() {
               s.importe_pagado != null ? `Bs. ${Number(s.importe_pagado).toLocaleString('es-BO')}` : '—',
               fmtFechaISO(s.fecha_pago),
               <Badge key="e" texto={s.estado} />,
+            ])}
+          />
+        )}
+      </Seccion>
+
+      {/* Historial llantas — igual formato pequeño que seguros */}
+      <Seccion titulo={`Historial de llantas (${v.placa})`} icono="🛞"
+        subtitulo="Cambios de llanta · fecha, cantidad, marca, costo y estado próximo"
+        className="mb-4">
+        {llantas.length===0 ? (
+          <p className="p-4 text-center text-slate-400 text-sm">Sin cambios de llanta registrados.</p>
+        ) : (
+          <Tabla
+            headers={['Nro','Fecha cambio','Tracto','Chata','Marca','Costo','Próximo','Estado']}
+            filas={llantas.map((l,i)=>[
+              i+1,
+              fmtFechaISO(l.fecha_cambio),
+              l.llantas_tracto ?? '—',
+              l.llantas_chata ?? '—',
+              l.marca || '—',
+              l.costo!=null ? `Bs. ${Number(l.costo).toLocaleString('es-BO')}` : '—',
+              fmtFechaISO(l.proxima_fecha),
+              <BadgeMant key="e" texto={evaluarProxima(l.proxima_fecha)} />
+            ])}
+          />
+        )}
+      </Seccion>
+
+      {/* Historial aceites — igual formato pequeño que seguros */}
+      <Seccion titulo={`Historial de aceites (${v.placa})`} icono="🛢️"
+        subtitulo="Cambios de aceite motor/caja/corona · marca, costo y estado"
+        className="mb-6">
+        {aceites.length===0 ? (
+          <p className="p-4 text-center text-slate-400 text-sm">Sin cambios de aceite registrados.</p>
+        ) : (
+          <Tabla
+            headers={['Nro','Tipo','Marca','Último cambio','Próximo','Costo','Estado']}
+            filas={aceites.map((a,i)=>[
+              i+1,
+              <span key="t" className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${a.tipo==='motor'?'bg-blue-100 text-blue-700':a.tipo==='caja'?'bg-violet-100 text-violet-700':'bg-amber-100 text-amber-700'}`}>{a.tipo}</span>,
+              a.marca || '—',
+              fmtFechaISO(a.fecha_ultimo_cambio),
+              fmtFechaISO(a.proxima_fecha),
+              a.costo!=null ? `Bs. ${Number(a.costo).toLocaleString('es-BO')}` : '—',
+              <BadgeMant key="e" texto={evaluarProxima(a.proxima_fecha)} />
             ])}
           />
         )}
@@ -161,16 +215,17 @@ function FormularioLlantas({ vehiculoId, onGuardado, registros }) {
   async function guardar() {
     if (!form.llantas_tracto && !form.llantas_chata) { setAviso('Registre la cantidad de llantas del tracto o de la chata'); return; }
     setGuardando(true); setAviso('');
-    const res = await fetch(`/api/flota/${vehiculoId}/llantas`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    setGuardando(false);
-    if (!res.ok) { setAviso(data.error || 'No se pudo registrar'); return; }
-    setForm({ llantas_tracto: '', llantas_chata: '', marca: '', fecha_cambio: '', proxima_fecha: '', observacion: '', costo:'', numero_factura:'', numero_comprobante:'', enlace:'' });
-    await onGuardado();
+    try{
+      const res = await fetch(`/api/flota/${vehiculoId}/llantas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) { setAviso(data.error || `Error ${res.status}: No se pudo registrar`); return; }
+      setForm({ llantas_tracto: '', llantas_chata: '', marca: '', fecha_cambio: '', proxima_fecha: '', observacion: '', costo:'', numero_factura:'', numero_comprobante:'', enlace:'' });
+      await onGuardado();
+    } catch(e){ setAviso(e.message || 'Error de conexión'); } finally { setGuardando(false); }
   }
 
   async function quitar(itemId) {
@@ -185,12 +240,12 @@ function FormularioLlantas({ vehiculoId, onGuardado, registros }) {
         <p className="text-xs text-slate-400 mb-2">Sin cambios de llantas registrados.</p>
       ) : (
         <Tabla compacta
-          headers={['Cambio', 'Tracto', 'Chata', 'Marca', 'Próximo', 'Estado', '']}
+          headers={['Cambio', 'Tracto', 'Chata', 'Marca', 'Costo', 'Próximo', 'Estado', '']}
           filas={registros.map(l => {
             const estado = evaluarProxima(l.proxima_fecha);
             return [
               fmtFechaISO(l.fecha_cambio), l.llantas_tracto ?? '—', l.llantas_chata ?? '—',
-              l.marca || '—', fmtFechaISO(l.proxima_fecha),
+              l.marca || '—', l.costo!=null?`Bs. ${Number(l.costo).toLocaleString('es-BO')}`:'—', fmtFechaISO(l.proxima_fecha),
               <BadgeMant key="e" texto={estado} />,
               <BotonQuitar key={l.id} onClick={() => quitar(l.id)} />,
             ];
@@ -222,16 +277,17 @@ function FormularioAceites({ vehiculoId, onGuardado, registros }) {
 
   async function guardar() {
     setGuardando(true); setAviso('');
-    const res = await fetch(`/api/flota/${vehiculoId}/aceites`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    setGuardando(false);
-    if (!res.ok) { setAviso(data.error || 'No se pudo registrar'); return; }
-    setForm({ tipo: form.tipo, marca: '', fecha_ultimo_cambio: '', proxima_fecha: '', observacion: '', costo:'', numero_factura:'', numero_comprobante:'', enlace:'' });
-    await onGuardado();
+    try{
+      const res = await fetch(`/api/flota/${vehiculoId}/aceites`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) { setAviso(data.error || `Error ${res.status}`); return; }
+      setForm({ tipo: form.tipo, marca: '', fecha_ultimo_cambio: '', proxima_fecha: '', observacion: '', costo:'', numero_factura:'', numero_comprobante:'', enlace:'' });
+      await onGuardado();
+    } catch(e){ setAviso(e.message||'Error de conexión'); } finally { setGuardando(false); }
   }
 
   async function quitar(itemId) {
@@ -248,10 +304,11 @@ function FormularioAceites({ vehiculoId, onGuardado, registros }) {
         <p className="text-xs text-slate-400 mb-2">Sin cambios de aceite registrados.</p>
       ) : (
         <Tabla compacta
-          headers={['Aceite', 'Marca', 'Último cambio', 'Próximo', 'Estado', '']}
+          headers={['Aceite', 'Marca', 'Último', 'Próximo', 'Costo', 'Estado', '']}
           filas={registros.map(a => [
             <span key="t" className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${TIPO_ESTILO[a.tipo]}`}>{a.tipo.charAt(0).toUpperCase() + a.tipo.slice(1)}</span>,
             a.marca || '—', fmtFechaISO(a.fecha_ultimo_cambio), fmtFechaISO(a.proxima_fecha),
+            a.costo!=null?`Bs. ${Number(a.costo).toLocaleString('es-BO')}`:'—',
             <BadgeMant key="e" texto={evaluarProxima(a.proxima_fecha)} />,
             <BotonQuitar key={a.id} onClick={() => quitar(a.id)} />,
           ])}
@@ -284,16 +341,17 @@ function FormularioSeguroCarga({ vehiculoId, onGuardado, registros }) {
   async function guardar() {
     if (!form.poliza.trim()) { setAviso('Los datos de la póliza son obligatorios'); return; }
     setGuardando(true); setAviso('');
-    const res = await fetch(`/api/flota/${vehiculoId}/seguros-carga`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    setGuardando(false);
-    if (!res.ok) { setAviso(data.error || 'No se pudo registrar'); return; }
-    setForm({ poliza: '', fecha_tramite: '', fecha_inicio: '', fecha_expiracion: '' });
-    await onGuardado();
+    try{
+      const res = await fetch(`/api/flota/${vehiculoId}/seguros-carga`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) { setAviso(data.error || `Error ${res.status}`); return; }
+      setForm({ poliza: '', fecha_tramite: '', fecha_inicio: '', fecha_expiracion: '' });
+      await onGuardado();
+    } catch(e){ setAviso(e.message||'Error de conexión'); } finally { setGuardando(false); }
   }
 
   async function quitar(itemId) {
