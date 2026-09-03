@@ -12,6 +12,93 @@ const FILTROS = [
 
 const UMBRAL_LIMPIEZA = 500;
 
+function AdminAlertas(){
+  const [a,setA]=useState(null);
+  useEffect(()=>{
+    Promise.all([
+      fetch('/api/flota?limit=100').then(r=>r.json()).catch(()=>({vehiculos:[],resumen:{}})),
+      fetch('/api/seguros?limit=100').then(r=>r.json()).catch(()=>({seguros:[],alertas:{}})),
+    ]).then(([f,s])=>{
+      const vehiculos = f.vehiculos || [];
+      const seguros = s.seguros || [];
+      const flotaResumen = f.resumen || {};
+      const segAlertas = s.alertas || {};
+      // Calcular llantas/aceites en ruta vs vencido con datos reales de flota
+      const llantasCambiar = vehiculos.filter(v=>v.llantas_estado==='Cambiar ya' || v.llantas_estado==='Por cambiar').map(v=>v.placa);
+      const aceitesCambiar = vehiculos.filter(v=>v.aceites_estado==='Cambiar ya' || v.aceites_estado==='Por cambiar').map(v=>v.placa);
+      // Seguros vencidos/proximos: solo activos, placas únicas (evita duplicados por múltiples pólizas por placa)
+      const vencidosRaw = seguros.filter(x=>x.activo && x.estado==='Vencido').map(x=>x.placa);
+      const vencidosList = [...new Set(vencidosRaw)];
+      const hoy = new Date(); hoy.setHours(0,0,0,0);
+      const proximosRaw = seguros.filter(x=>{
+        if(!x.activo || x.estado!=='Vigente' || !x.fecha_vencimiento) return false;
+        const fv=new Date(x.fecha_vencimiento); fv.setHours(0,0,0,0);
+        const diff=(fv-hoy)/(86400000);
+        return diff>=0 && diff<=30;
+      }).map(x=>x.placa);
+      const proximosList = [...new Set(proximosRaw)];
+      // Usar listas dedup como fuente de verdad (coherente conteo ↔ placas)
+      const llantasSet = [...new Set(llantasCambiar)];
+      const aceitesSet = [...new Set(aceitesCambiar)];
+      setA({
+        seguroVencidos: vencidosList.length,
+        seguroProximos: proximosList.length,
+        llantas: llantasSet.length,
+        aceites: aceitesSet.length,
+        _det: { vencidosList, proximosList, llantasCambiar: llantasSet, aceitesCambiar: aceitesSet, vehiculos }
+      });
+    }).catch(()=>{});
+  },[]);
+  if(!a) return null;
+  const tiene = a.seguroVencidos>0 || a.seguroProximos>0 || a.llantas>0 || a.aceites>0;
+  const placas = (arr)=> arr.length ? arr.slice(0,4).join(', ') + (arr.length>4?` +${arr.length-4} más`:'') : '—';
+  if(!tiene) return <div className="mb-4 flex items-center gap-2 text-xs text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-lg px-3 py-2">✅ Sin alertas: seguros, llantas y aceites al día</div>;
+  return (
+    <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className={`rounded-lg border px-2.5 py-2 ${a.seguroVencidos>0?'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900':'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'}`}>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">🛡️</span>
+          <div className="leading-tight">
+            <div className="text-[10px] uppercase font-semibold text-slate-400">Seguro vencido</div>
+            <div className={`text-sm font-bold ${a.seguroVencidos>0?'text-red-600':'text-slate-700 dark:text-slate-200'}`}>{a.seguroVencidos}</div>
+          </div>
+        </div>
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate" title={placas(a._det.vencidosList)}>{a._det.vencidosList.length ? `Placas: ${placas(a._det.vencidosList)}` : 'Sin placas'}</div>
+      </div>
+      <div className={`rounded-lg border px-2.5 py-2 ${a.seguroProximos>0?'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900':'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'}`}>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">⏰</span>
+          <div className="leading-tight">
+            <div className="text-[10px] uppercase font-semibold text-slate-400">Por vencer (30d)</div>
+            <div className={`text-sm font-bold ${a.seguroProximos>0?'text-amber-700':'text-slate-700 dark:text-slate-200'}`}>{a.seguroProximos}</div>
+          </div>
+        </div>
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate" title={placas(a._det.proximosList)}>{a._det.proximosList.length ? `Placas: ${placas(a._det.proximosList)}` : 'Sin placas'}</div>
+      </div>
+      <div className={`rounded-lg border px-2.5 py-2 ${a.llantas>0?'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900':'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'}`}>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">🛞</span>
+          <div className="leading-tight">
+            <div className="text-[10px] uppercase font-semibold text-slate-400">Llantas cambio</div>
+            <div className={`text-sm font-bold ${a.llantas>0?'text-amber-700':'text-slate-700 dark:text-slate-200'}`}>{a.llantas}</div>
+          </div>
+        </div>
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate" title={placas(a._det.llantasCambiar)}>{a._det.llantasCambiar.length ? `Placas: ${placas(a._det.llantasCambiar)}` : 'Sin placas'}</div>
+      </div>
+      <div className={`rounded-lg border px-2.5 py-2 ${a.aceites>0?'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900':'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'}`}>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">🛢️</span>
+          <div className="leading-tight">
+            <div className="text-[10px] uppercase font-semibold text-slate-400">Aceite cambio</div>
+            <div className={`text-sm font-bold ${a.aceites>0?'text-amber-700':'text-slate-700 dark:text-slate-200'}`}>{a.aceites}</div>
+          </div>
+        </div>
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate" title={placas(a._det.aceitesCambiar)}>{a._det.aceitesCambiar.length ? `Placas: ${placas(a._det.aceitesCambiar)}` : 'Sin placas'}</div>
+      </div>
+    </div>
+  );
+}
+
 function fmt(n) { return 'Bs. ' + Number(n).toFixed(2); }
 function fmtFecha(iso) { return new Date(iso).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
 function fmtFechaHora(iso) {
@@ -178,6 +265,8 @@ export default function HistorialPage() {
         <StatCard titulo="Total devuelto" valor={fmt(estadisticas.totalDev)} icono="💸" color="red" />
         <StatCard titulo="Saldo neto" valor={fmt(estadisticas.saldoNeto)} icono="📊" color="violet" />
       </div>
+
+      <AdminAlertas />
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         {cargando ? (
