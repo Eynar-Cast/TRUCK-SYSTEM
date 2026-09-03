@@ -90,6 +90,23 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ error: 'La calificación debe ser entre 1 y 5 estrellas' }, { status: 400 });
   }
 
+  // Placa debe ser de un camión registrado
+  const flotaExiste = await query('SELECT id FROM flota WHERE placa=$1 LIMIT 1', [placa]);
+  if (flotaExiste.length===0) return NextResponse.json({ error: `La placa ${placa} no existe en Flota. Registra el camión primero.` }, { status: 400 });
+
+  // No permitir cambiar placa si el camión actual o el nuevo está En ruta
+  const actual = await query('SELECT placa FROM choferes WHERE id=$1', [id]);
+  const placaActual = actual[0]?.placa;
+  if (placaActual && placaActual !== placa) {
+    const enRutaViejo = await query(`SELECT id FROM viajes WHERE placa=$1 AND estado IN ('En ruta','Programado') LIMIT 1`, [placaActual]);
+    if (enRutaViejo.length>0) return NextResponse.json({ error: `No se puede cambiar la placa: el camión ${placaActual} está En ruta` }, { status: 409 });
+    const enRutaNuevo = await query(`SELECT id FROM viajes WHERE placa=$1 AND estado IN ('En ruta','Programado') LIMIT 1`, [placa]);
+    if (enRutaNuevo.length>0) return NextResponse.json({ error: `No se puede asignar la placa ${placa}: ese camión está En ruta` }, { status: 409 });
+  } else if (placaActual) {
+    const enRuta = await query(`SELECT id FROM viajes WHERE placa=$1 AND estado IN ('En ruta','Programado') LIMIT 1`, [placaActual]);
+    if (enRuta.length>0 && placaActual !== placa) return NextResponse.json({ error: `No se puede cambiar la placa mientras el camión ${placaActual} está En ruta` }, { status: 409 });
+  }
+
   const rows = await query(
     `UPDATE choferes SET nombre=$1, placa=$2, documento=$3, licencia=$4, telefono=$5, direccion=$6, calificacion=$7
      WHERE id=$8 RETURNING *`,

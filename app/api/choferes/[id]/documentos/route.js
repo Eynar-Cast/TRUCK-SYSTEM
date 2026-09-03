@@ -25,8 +25,10 @@ export async function POST(request, { params }) {
   if (![...TIPOS_FIJOS, 'adjunto'].includes(tipo)) {
     return NextResponse.json({ error: 'Tipo de documento inválido' }, { status: 400 });
   }
-  const archivo = String(body.archivo || '').trim() || null;
+  const archivo = String(body.archivo || '').trim() || null; // enlace en texto (URL manual)
   const observacion = String(body.observacion || '').trim() || null;
+  const numero_factura = String(body.numero_factura || '').trim() || null;
+  const numero_comprobante = String(body.numero_comprobante || '').trim() || null;
 
   const existe = await query('SELECT id FROM choferes WHERE id = $1', [id]);
   if (existe.length === 0) return NextResponse.json({ error: 'Conductor no encontrado' }, { status: 404 });
@@ -34,17 +36,17 @@ export async function POST(request, { params }) {
   // Para luz/agua/croquis se conserva un solo registro por tipo
   if (TIPOS_FIJOS.includes(tipo)) {
     const rows = await query(
-      `UPDATE conductor_documentos SET archivo=$3, observacion=$4
+      `UPDATE conductor_documentos SET archivo=$3, observacion=$4, numero_factura=$5, numero_comprobante=$6
        WHERE chofer_id=$1 AND tipo=$2
        RETURNING *`,
-      [id, tipo, archivo, observacion]
+      [id, tipo, archivo, observacion, numero_factura, numero_comprobante]
     );
     if (rows.length > 0) return NextResponse.json({ documento: rows[0] });
   }
 
   const insertados = await query(
-    'INSERT INTO conductor_documentos (chofer_id, tipo, archivo, observacion) VALUES ($1,$2,$3,$4) RETURNING *',
-    [id, tipo, archivo, observacion]
+    'INSERT INTO conductor_documentos (chofer_id, tipo, archivo, observacion, numero_factura, numero_comprobante) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+    [id, tipo, archivo, observacion, numero_factura, numero_comprobante]
   );
   return NextResponse.json({ documento: insertados[0] }, { status: 201 });
 }

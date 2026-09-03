@@ -75,19 +75,30 @@ export async function POST(request) {
   const sesion = await obtenerSesion();
   if (!sesion) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  const { producto, precio, descripcion, tieneFactura, fotoFactura, tipoPago, fotoQr } = await request.json();
+  const { producto, precio, descripcion, tieneFactura, fotoFactura, tipoPago, fotoQr, enlace, numero_factura, numero_comprobante, placa, flota_id } = await request.json();
 
   if (!producto || !precio || precio <= 0) {
     return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
   }
-  if (tipoPago === 'qr' && !fotoQr) {
-    return NextResponse.json({ error: 'Debes subir el comprobante QR' }, { status: 400 });
+  // Ya no se exige imagen QR; se pide Nº comprobante en texto si es QR
+  const enlaceTxt = (enlace || fotoFactura || fotoQr || '').trim() || null;
+  const numFact = (numero_factura || '').trim() || null;
+  const numComp = (numero_comprobante || '').trim() || null;
+  let flotaId = flota_id ? Number(flota_id) : null;
+  if (flotaId && (!Number.isInteger(flotaId) || flotaId<=0)) flotaId=null;
+  let placaNorm = placa ? String(placa).trim().toUpperCase() : null;
+  if (flotaId) {
+    const f = await query('SELECT placa FROM flota WHERE id=$1', [flotaId]);
+    if (f.length) placaNorm = f[0].placa;
+  } else if (placaNorm) {
+    const f = await query('SELECT id FROM flota WHERE placa=$1 LIMIT 1', [placaNorm]);
+    if (f.length) flotaId = f[0].id;
   }
 
   const rows = await query(
-    `INSERT INTO compras (user_id, producto, precio, descripcion, tiene_factura, foto_factura, tipo_pago, foto_qr)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [sesion.id, producto, precio, descripcion || null, !!tieneFactura, fotoFactura || null, tipoPago, fotoQr || null]
+    `INSERT INTO compras (user_id, producto, precio, descripcion, tiene_factura, foto_factura, tipo_pago, foto_qr, enlace, numero_factura, numero_comprobante, placa, flota_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+    [sesion.id, producto, precio, descripcion || null, !!tieneFactura, fotoFactura || null, tipoPago, fotoQr || null, enlaceTxt, numFact, numComp, placaNorm, flotaId]
   );
 
   return NextResponse.json({ compra: rows[0] }, { status: 201 });

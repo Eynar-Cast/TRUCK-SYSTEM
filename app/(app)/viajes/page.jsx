@@ -37,7 +37,7 @@ export default function ViajesPage() {
 
   async function guardar(e){
     e.preventDefault(); setGuardando(true); setErrorModal('');
-    // chofer_nombre se deriva si se eligió chofer_id
+    if(!form.flota_id){ setErrorModal('Selecciona una placa registrada de la flota'); setGuardando(false); return; }
     const payload = { ...form };
     if(payload.flota_id) {
       const f = flota.find(x=>String(x.id)===String(payload.flota_id));
@@ -166,12 +166,12 @@ export default function ViajesPage() {
             {errorModal && <div className="mb-3 p-3 rounded-lg bg-red-100 text-red-600 text-sm">{errorModal}</div>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Placa *</label>
-                <select value={form.flota_id} onChange={e=>{const v=e.target.value; const f=flota.find(x=>String(x.id)===v); setForm({...form, flota_id:v, placa: f?f.placa: form.placa});}} className={inputCls}>
-                  <option value="">Elige camión</option>
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Placa * (solo camiones registrados)</label>
+                <select required value={form.flota_id} onChange={e=>{const v=e.target.value; const f=flota.find(x=>String(x.id)===v); setForm({...form, flota_id:v, placa: f?f.placa: ''});}} className={inputCls}>
+                  <option value="">Elige camión — placa obligatoria</option>
                   {flota.map(f=><option key={f.id} value={f.id}>{f.placa} — {f.marca} {f.modelo}</option>)}
                 </select>
-                <input placeholder="o escribe placa manual" value={form.placa} onChange={e=>setForm({...form, placa:e.target.value.toUpperCase(), flota_id:''})} className={`${inputCls} mt-1 font-mono`} />
+                {flota.length===0 && <p className="text-[11px] text-amber-600 mt-1">Registra camiones en Flota primero.</p>}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Tipo</label>

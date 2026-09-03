@@ -387,8 +387,8 @@ export default function FlotaPage() {
                 <datalist id="lista-modelos">{catalogos.modelo.map(m => <option key={m} value={m} />)}</datalist>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Placa *</label>
-                <input required value={form.placa} onChange={e => setForm({ ...form, placa: e.target.value.toUpperCase() })} className={`${inputCls} font-mono`} placeholder="Ej: 1234-ABC" maxLength={15} />
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Placa * {editando?.estado_vehiculo==='En ruta' && <span className="text-[11px] text-amber-600">(bloqueada)</span>}</label>
+                <input required value={form.placa} onChange={e => setForm({ ...form, placa: e.target.value.toUpperCase() })} className={`${inputCls} font-mono ${editando?.estado_vehiculo==='En ruta'?'bg-slate-100 opacity-60':''}`} placeholder="Ej: 1234-ABC" maxLength={15} disabled={editando?.estado_vehiculo==='En ruta'} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">N° de serie</label>
@@ -415,11 +415,12 @@ export default function FlotaPage() {
                 <input value={form.operador_logistico} onChange={e => setForm({ ...form, operador_logistico: e.target.value })} className={inputCls} placeholder="Ej: Transportes Andina SRL" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Conductor designado</label>
-                <select value={form.chofer_id} onChange={e => setForm({ ...form, chofer_id: e.target.value })} className={inputCls}>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Conductor designado {editando?.estado_vehiculo==='En ruta' && <span className="text-[11px] text-amber-600">(bloqueado: En ruta)</span>}</label>
+                <select value={form.chofer_id} onChange={e => setForm({ ...form, chofer_id: e.target.value })} className={inputCls} disabled={editando?.estado_vehiculo==='En ruta'}>
                   <option value="">Sin asignar</option>
                   {choferes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
+                {editando?.estado_vehiculo==='En ruta' && <p className="text-[11px] text-amber-600 mt-1">No se puede cambiar conductor mientras el camión está En ruta.</p>}
               </div>
             </div>
 

@@ -234,22 +234,14 @@ function ChoferesContenido() {
     await abrirDetalle(detalle.chofer);
   }
 
-  // ---- Documentación (luz, agua, croquis, adjuntos) ----
-  async function subirArchivo(file) {
-    const fd = new FormData();
-    fd.append('file', file);
-    const res = await fetch('/api/upload', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'No se pudo subir el archivo');
-    return data.url;
-  }
-
-  async function registrarDocumento(tipo, archivo = null) {
+  // ---- Documentación (solo texto: enlace + Nº factura/comprobante, sin imágenes) ----
+  async function registrarDocumento(tipo, datos = {}) {
     try {
+      const body = { tipo, archivo: datos.archivo || null, observacion: datos.observacion || null, numero_factura: datos.numero_factura || null, numero_comprobante: datos.numero_comprobante || null };
       const res = await fetch(`/api/choferes/${detalle.chofer.id}/documentos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipo, archivo }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) { setAvisoDetalle(data.error || 'No se pudo registrar el documento'); return false; }
@@ -259,16 +251,6 @@ function ChoferesContenido() {
     } catch (e) {
       setAvisoDetalle(e.message || 'Error al registrar el documento');
       return false;
-    }
-  }
-
-  async function adjuntarDocumento(tipo, file) {
-    try {
-      setAvisoDetalle('Subiendo archivo…');
-      const url = await subirArchivo(file);
-      await registrarDocumento(tipo, url);
-    } catch (e) {
-      setAvisoDetalle(e.message || 'Error al subir el archivo');
     }
   }
 
@@ -431,8 +413,13 @@ function ChoferesContenido() {
                   <input value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} className={inputCls} placeholder="Ej: 70012345" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Placa del camión *</label>
-                  <input required value={form.placa} onChange={e => setForm({ ...form, placa: e.target.value.toUpperCase() })} className={`${inputCls} font-mono`} placeholder="Ej: 1234-BCD" title="Se mantiene para Gastos de Chofer" />
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Placa del camión * {editando && flotaLista.find(f=>f.placa===editando.placa)?.estado_vehiculo==='En ruta' && <span className="text-[11px] text-amber-600">(bloqueada: En ruta)</span>}</label>
+                  <select required value={form.placa} onChange={e => setForm({ ...form, placa: e.target.value })} className={`${inputCls} font-mono ${editando && flotaLista.find(f=>f.placa===editando.placa)?.estado_vehiculo==='En ruta' ? 'bg-slate-100 opacity-60' : ''}`} disabled={editando && flotaLista.find(f=>f.placa===editando.placa)?.estado_vehiculo==='En ruta'}>
+                    <option value="">— Selecciona placa registrada —</option>
+                    {flotaLista.map(v => <option key={v.id} value={v.placa}>{v.placa} — {v.marca} {v.modelo} {v.estado_vehiculo==='En ruta'?'· En ruta':''}</option>)}
+                  </select>
+                  {flotaLista.length===0 && <p className="text-[11px] text-amber-600 mt-1">No hay camiones registrados. Registra primero en Flota.</p>}
+                  {editando && flotaLista.find(f=>f.placa===editando.placa)?.estado_vehiculo==='En ruta' && <p className="text-[11px] text-amber-600 mt-1">No se puede cambiar placa mientras el camión está En ruta.</p>}
                 </div>
               </div>
               <div>
@@ -617,7 +604,6 @@ function ChoferesContenido() {
                 <DocumentacionSection
                   documentos={detalle.documentos}
                   onRegistrar={registrarDocumento}
-                  onAdjuntar={adjuntarDocumento}
                   onQuitar={quitarDocumento}
                 />
 
@@ -648,60 +634,71 @@ const DOCS_FIJOS = [
   { tipo: 'croquis', label: 'Croquis del domicilio', icono: '🗺️' },
 ];
 
-function DocumentacionSection({ documentos, onRegistrar, onAdjuntar, onQuitar }) {
+function DocumentacionSection({ documentos, onRegistrar, onQuitar }) {
   const porTipo = Object.fromEntries(documentos.map(d => [d.tipo, d]));
   const adjuntos = documentos.filter(d => d.tipo === 'adjunto');
+  const [drafts, setDrafts] = useState({});
+  const [adjDraft, setAdjDraft] = useState({ archivo:'', numero_factura:'', numero_comprobante:'', observacion:'' });
+
+  function getDraft(tipo, doc){
+    if (drafts[tipo] !== undefined) return drafts[tipo];
+    return { archivo: doc?.archivo||'', numero_factura: doc?.numero_factura||'', numero_comprobante: doc?.numero_comprobante||'', observacion: doc?.observacion||'' };
+  }
+  function setDraft(tipo, patch){
+    setDrafts(prev=>({ ...prev, [tipo]: { ...getDraft(tipo, porTipo[tipo]), ...patch } }));
+  }
+  function guardar(tipo){
+    const d = getDraft(tipo, porTipo[tipo]);
+    onRegistrar(tipo, d);
+  }
 
   function filaDoc(icono, label, doc, tipo) {
+    const d = getDraft(tipo, doc);
+    const registrado = !!doc;
     return (
-      <li key={tipo} className="flex flex-wrap items-center justify-between gap-2 text-sm bg-slate-50 dark:bg-slate-800/60 rounded-lg px-3 py-2">
-        <span>
-          {icono} {label}
-          {doc ? (
-            <span className="ml-2 inline-flex items-center gap-1">
-              <span className="text-green-600 dark:text-green-400 text-xs font-semibold">✓ Registrado</span>
-              {doc.archivo && (
-                <a href={doc.archivo} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline text-xs">Ver adjunto</a>
-              )}
-            </span>
-          ) : (
-            <span className="ml-2 text-xs text-slate-400">Falta</span>
-          )}
-        </span>
-        <span className="flex items-center gap-2 shrink-0">
-          {!doc && (
-            <button type="button" onClick={() => onRegistrar(tipo)} className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 hover:bg-violet-200">Marcar</button>
-          )}
-          <label className={`px-2.5 py-1 rounded-lg text-[11px] font-medium cursor-pointer ${doc?.archivo ? 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200'}`}>
-            {doc?.archivo ? 'Cambiar' : 'Adjuntar'}
-            <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files[0]) onAdjuntar(tipo, e.target.files[0]); }} />
-          </label>
-          {doc && (
-            <button type="button" onClick={() => onQuitar(doc.id)} className="text-red-400 hover:text-red-600 text-xs">Quitar</button>
-          )}
-        </span>
+      <li key={tipo} className="bg-slate-50 dark:bg-slate-800/60 rounded-lg px-3 py-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">{icono} {label} {registrado ? <span className="ml-2 text-green-600 text-xs font-semibold">✓ Registrado</span> : <span className="ml-2 text-xs text-slate-400">Falta</span>}</span>
+          {registrado && <button type="button" onClick={() => onQuitar(doc.id)} className="text-red-400 hover:text-red-600 text-xs">Quitar</button>}
+        </div>
+        {registrado && (
+          <div className="text-xs text-slate-600 dark:text-slate-300 space-y-0.5">
+            {doc.archivo && <div>🔗 <a href={doc.archivo} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline break-all">{doc.archivo}</a></div>}
+            {doc.numero_factura && <div>🧾 Nº Factura: {doc.numero_factura}</div>}
+            {doc.numero_comprobante && <div>💳 Nº Comprobante/Transferencia: {doc.numero_comprobante}</div>}
+          </div>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <input placeholder="Enlace de acceso (URL texto)" value={d.archivo} onChange={e=>setDraft(tipo,{archivo:e.target.value})} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded text-xs" />
+          <input placeholder="Nº Factura" value={d.numero_factura} onChange={e=>setDraft(tipo,{numero_factura:e.target.value})} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded text-xs" />
+          <input placeholder="Nº Comprobante / Transferencia" value={d.numero_comprobante} onChange={e=>setDraft(tipo,{numero_comprobante:e.target.value})} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded text-xs" />
+        </div>
+        <button type="button" onClick={()=>guardar(tipo)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-600 text-white hover:bg-violet-700">{registrado ? 'Actualizar' : 'Guardar'}</button>
       </li>
     );
   }
 
   return (
     <section className="border-t border-slate-100 dark:border-slate-800 pt-4">
-      <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm mb-2">Documentación</h4>
-      <ul className="space-y-1.5 mb-3">
+      <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm mb-2">Documentación (solo texto + Nº factura/comprobante)</h4>
+      <p className="text-[11px] text-slate-400 mb-2">Sin carga de imágenes. Agregue el enlace de acceso y los números de comprobante manualmente.</p>
+      <ul className="space-y-2 mb-4">
         {DOCS_FIJOS.map(({ tipo, label, icono }) => filaDoc(icono, label, porTipo[tipo], tipo))}
       </ul>
-
-      <div className="flex flex-wrap items-center gap-2 mb-2">
-        <label className="px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 hover:bg-violet-200 cursor-pointer">
-          + Adjuntar documento
-          <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files[0]) onAdjuntar('adjunto', e.target.files[0]); }} />
-        </label>
+      <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+        <h5 className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">+ Documento adicional</h5>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+          <input placeholder="Enlace de acceso (URL texto)" value={adjDraft.archivo} onChange={e=>setAdjDraft({...adjDraft, archivo:e.target.value})} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded text-xs" />
+          <input placeholder="Nº Factura" value={adjDraft.numero_factura} onChange={e=>setAdjDraft({...adjDraft, numero_factura:e.target.value})} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded text-xs" />
+          <input placeholder="Nº Comprobante / Transferencia" value={adjDraft.numero_comprobante} onChange={e=>setAdjDraft({...adjDraft, numero_comprobante:e.target.value})} className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded text-xs" />
+        </div>
+        <button type="button" onClick={async()=>{ if(!adjDraft.archivo && !adjDraft.numero_factura && !adjDraft.numero_comprobante){ setAdjDraft({archivo:'',numero_factura:'',numero_comprobante:'',observacion:''}); return;} const ok=await onRegistrar('adjunto', adjDraft); if(ok) setAdjDraft({archivo:'',numero_factura:'',numero_comprobante:'',observacion:''});}} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-100 text-violet-700 hover:bg-violet-200">+ Guardar documento</button>
       </div>
       {adjuntos.length > 0 && (
-        <ul className="space-y-1.5">
+        <ul className="space-y-1.5 mt-3">
           {adjuntos.map(a => (
-            <li key={a.id} className="flex items-center justify-between text-sm bg-slate-50 dark:bg-slate-800/60 rounded-lg px-3 py-2">
-              📎 <a href={a.archivo} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline truncate max-w-[70%]">Documento adjunto ({new Date(a.creado).toLocaleDateString('es-BO')})</a>
+            <li key={a.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs bg-slate-50 dark:bg-slate-800/60 rounded-lg px-3 py-2">
+              <span className="flex-1 min-w-0">📎 {a.archivo ? <a href={a.archivo} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline break-all">{a.archivo}</a> : '—'} {a.numero_factura ? `· Factura ${a.numero_factura}` : ''} {a.numero_comprobante ? `· Comp. ${a.numero_comprobante}` : ''}</span>
               <button type="button" onClick={() => onQuitar(a.id)} className="text-red-400 hover:text-red-600 text-xs shrink-0">Quitar</button>
             </li>
           ))}

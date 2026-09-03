@@ -56,9 +56,11 @@ export default function ReportesPage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Reportes mensuales</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">Selecciona el módulo y el mes que deseas consultar</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button onClick={() => descargar(`/api/reportes/mensual/exportar?tipo=${tipo}&mes=${mes}`)} disabled={!data}
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg text-sm disabled:opacity-50">⬇️ Exportar Excel</button>
+          <button onClick={() => descargar(`/api/reportes/mensual/exportar?tipo=todo&mes=${mes}`)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm">📚 Libro completo (todas las hojas)</button>
         </div>
       </div>
 

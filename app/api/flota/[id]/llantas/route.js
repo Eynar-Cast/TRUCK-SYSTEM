@@ -38,6 +38,8 @@ function validarLlantas(body = {}) {
     proxima = d.toISOString().slice(0, 10);
   }
 
+  const costo = body.costo===''||body.costo==null?null:Number(body.costo);
+  if (costo!==null && (!isFinite(costo)||costo<0)) return { error: 'Costo inválido' };
   return {
     datos: {
       llantas_tracto: tracto,
@@ -46,6 +48,7 @@ function validarLlantas(body = {}) {
       fecha_cambio: cambio,
       proxima_fecha: proxima,
       observacion: texto(body.observacion),
+      costo, numero_factura: texto(body.numero_factura), numero_comprobante: texto(body.numero_comprobante), enlace: texto(body.enlace),
     },
   };
 }
@@ -67,9 +70,9 @@ export async function POST(request, { params }) {
   if (existe.length === 0) return NextResponse.json({ error: 'Vehículo no encontrado' }, { status: 404 });
 
   const rows = await query(
-    `INSERT INTO llantas (flota_id, llantas_tracto, llantas_chata, marca, fecha_cambio, proxima_fecha, observacion)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-    [id, d.llantas_tracto, d.llantas_chata, d.marca, d.fecha_cambio, d.proxima_fecha, d.observacion]
+    `INSERT INTO llantas (flota_id, llantas_tracto, llantas_chata, marca, fecha_cambio, proxima_fecha, observacion, costo, numero_factura, numero_comprobante, enlace)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+    [id, d.llantas_tracto, d.llantas_chata, d.marca, d.fecha_cambio, d.proxima_fecha, d.observacion, d.costo, d.numero_factura, d.numero_comprobante, d.enlace]
   );
   return NextResponse.json({ llanta: rows[0] }, { status: 201 });
 }

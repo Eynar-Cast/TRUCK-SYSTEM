@@ -59,7 +59,9 @@ export async function POST(request) {
     } else {
       const f = await query('SELECT id FROM flota WHERE placa=$1 LIMIT 1', [placa]);
       if (f.length>0) flota_id = f[0].id;
+      else return NextResponse.json({ error: `La placa ${placa} no existe en Flota` }, { status: 400 });
     }
+    if (!flota_id) return NextResponse.json({ error: 'Placa debe ser de un camión registrado' }, { status: 400 });
     const rows = await query(
       `INSERT INTO impuestos (flota_id, placa, concepto, monto, fecha_registro, pagado, fecha_pago, observaciones)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,

@@ -106,6 +106,11 @@ export async function POST(request) {
   const validacion = validarConductor(body);
   if (!validacion.ok) return NextResponse.json({ error: validacion.error }, { status: 400 });
   const d = validacion.datos;
+  // Placa debe existir en flota
+  const flotaExiste = await query('SELECT id FROM flota WHERE placa=$1 LIMIT 1', [d.placa]);
+  if (flotaExiste.length===0) return NextResponse.json({ error: `La placa ${d.placa} no existe en Flota` }, { status: 400 });
+  const enRuta = await query(`SELECT id FROM viajes WHERE placa=$1 AND estado IN ('En ruta','Programado') LIMIT 1`, [d.placa]);
+  if (enRuta.length>0) return NextResponse.json({ error: `No se puede asignar la placa ${d.placa}: camión En ruta` }, { status: 409 });
 
   try {
     const rows = await query(

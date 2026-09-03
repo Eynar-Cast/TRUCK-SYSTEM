@@ -213,7 +213,7 @@ export default function UsuariosPage() {
                 <select value={nuRole} onChange={e => setNuRole(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100">
                   <option value="user">Compras / Repuestos / Devoluciones / Gastos chofer (usuario)</option>
-                  <option value="secretaria">Secretaria ARIAS — Flota, Viajes, Seguros, Conductores, Reportes, Impuestos, Catálogo</option>
+                  <option value="secretaria">Secretaria  — Flota, Viajes, Seguros, Conductores, Reportes, Impuestos, Catálogo</option>
                 </select>
                 <p className="text-[11px] text-slate-400 mt-1">Admin mantiene todo. Secretaria no ve Historial global, Gastos conductores ni Usuarios.</p>
               </div>
@@ -221,7 +221,7 @@ export default function UsuariosPage() {
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cargo / Área</label>
                 <input value={nuCargo} onChange={e => setNuCargo(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 rounded-lg outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                  placeholder="Ej: Almacén, Compras, Secretaria ARIAS..." />
+                  placeholder="Ej: Almacén, Compras, Secretaria..." />
               </div>
             </div>
             <div className="flex gap-2 justify-end mt-6">

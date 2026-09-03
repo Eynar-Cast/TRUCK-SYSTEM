@@ -97,6 +97,22 @@ export async function PUT(request, { params }) {
     const chofer = await query('SELECT id FROM choferes WHERE id = $1', [d.chofer_id]);
     if (chofer.length === 0) return NextResponse.json({ error: 'El conductor designado no existe' }, { status: 400 });
   }
+  // No permitir cambiar placa o conductor si el camión está En ruta
+  const actualFlota = await query('SELECT placa, chofer_id FROM flota WHERE id=$1', [id]);
+  const placaActual = actualFlota[0]?.placa;
+  const choferActual = actualFlota[0]?.chofer_id;
+  if (placaActual) {
+    const enRuta = await query(`SELECT id FROM viajes WHERE placa=$1 AND estado IN ('En ruta','Programado') LIMIT 1`, [placaActual]);
+    if (enRuta.length>0) {
+      if (d.placa !== placaActual) return NextResponse.json({ error: `No se puede cambiar la placa mientras el camión ${placaActual} está En ruta` }, { status: 409 });
+      if (d.chofer_id !== choferActual) return NextResponse.json({ error: `No se puede cambiar el conductor mientras el camión ${placaActual} está En ruta` }, { status: 409 });
+    }
+    // si cambia a nueva placa que ya está en ruta
+    if (d.placa !== placaActual) {
+      const enRutaNueva = await query(`SELECT id FROM viajes WHERE placa=$1 AND estado IN ('En ruta','Programado') LIMIT 1`, [d.placa]);
+      if (enRutaNueva.length>0) return NextResponse.json({ error: `La placa destino ${d.placa} está En ruta` }, { status: 409 });
+    }
+  }
 
   for (const [tipoCat, valor] of [['tipo_vehiculo', d.tipo], ['marca', d.marca], ['modelo', d.modelo]]) {
     await query('INSERT INTO catalogos (tipo, valor) VALUES ($1,$2) ON CONFLICT (tipo, valor) DO NOTHING', [tipoCat, valor]);

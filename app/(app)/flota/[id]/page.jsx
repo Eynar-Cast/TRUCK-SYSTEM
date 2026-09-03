@@ -82,6 +82,8 @@ export default function FlotaDetallePage() {
 
       {/* Alertas de mantenimiento: ¿ya toca cambiar llantas o aceites? */}
       <AlertaMantenimiento llantas={llantas} aceites={aceites} />
+      {/* Resumen general por placa: viajes, costos llanta/aceite/impuestos/repuestos */}
+      <ResumenPlaca placa={v.placa} />
 
       {/* Información general */}
       <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 mb-4">
@@ -152,7 +154,7 @@ export default function FlotaDetallePage() {
 // ---------- Secciones interactivas ----------
 
 function FormularioLlantas({ vehiculoId, onGuardado, registros }) {
-  const [form, setForm] = useState({ llantas_tracto: '', llantas_chata: '', marca: '', fecha_cambio: '', proxima_fecha: '', observacion: '' });
+  const [form, setForm] = useState({ llantas_tracto: '', llantas_chata: '', marca: '', fecha_cambio: '', proxima_fecha: '', observacion: '', costo:'', numero_factura:'', numero_comprobante:'', enlace:'' });
   const [aviso, setAviso] = useState('');
   const [guardando, setGuardando] = useState(false);
 
@@ -167,7 +169,7 @@ function FormularioLlantas({ vehiculoId, onGuardado, registros }) {
     const data = await res.json();
     setGuardando(false);
     if (!res.ok) { setAviso(data.error || 'No se pudo registrar'); return; }
-    setForm({ llantas_tracto: '', llantas_chata: '', marca: '', fecha_cambio: '', proxima_fecha: '', observacion: '' });
+    setForm({ llantas_tracto: '', llantas_chata: '', marca: '', fecha_cambio: '', proxima_fecha: '', observacion: '', costo:'', numero_factura:'', numero_comprobante:'', enlace:'' });
     await onGuardado();
   }
 
@@ -201,7 +203,11 @@ function FormularioLlantas({ vehiculoId, onGuardado, registros }) {
         <input placeholder="Marca de las llantas" value={form.marca} onChange={e => setForm({ ...form, marca: e.target.value })} className={`${inputCls} text-sm`} />
         <input type="date" title="Fecha de cambio" value={form.fecha_cambio} onChange={e => setForm({ ...form, fecha_cambio: e.target.value })} className={`${inputCls} text-sm`} />
         <input type="date" title="Próxima fecha (vacío = +3 meses)" value={form.proxima_fecha} onChange={e => setForm({ ...form, proxima_fecha: e.target.value })} className={`${inputCls} text-sm`} />
-        <button type="button" onClick={guardar} disabled={guardando} className="px-3 py-2 rounded-lg text-xs font-medium bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-60 whitespace-nowrap sm:col-span-2 md:col-span-1">+ Registrar cambio</button>
+        <input type="number" step="0.01" min="0" placeholder="Costo (Bs.)" value={form.costo} onChange={e=>setForm({...form,costo:e.target.value})} className={`${inputCls} text-sm`} />
+        <input placeholder="Nº Factura" value={form.numero_factura} onChange={e=>setForm({...form,numero_factura:e.target.value})} className={`${inputCls} text-sm`} />
+        <input placeholder="Nº Comprobante" value={form.numero_comprobante} onChange={e=>setForm({...form,numero_comprobante:e.target.value})} className={`${inputCls} text-sm`} />
+        <input placeholder="Enlace (URL texto)" value={form.enlace} onChange={e=>setForm({...form,enlace:e.target.value})} className={`${inputCls} text-sm col-span-2`} />
+        <button type="button" onClick={guardar} disabled={guardando} className="px-3 py-2 rounded-lg text-xs font-medium bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-60 whitespace-nowrap">+ Registrar cambio</button>
       </div>
       <p className="mt-2 text-[11px] text-slate-400">Si no indicas la próxima fecha, se programa a 3 meses del último cambio.</p>
       {aviso && <p className="mt-2 text-xs text-red-500">{aviso}</p>}
@@ -210,7 +216,7 @@ function FormularioLlantas({ vehiculoId, onGuardado, registros }) {
 }
 
 function FormularioAceites({ vehiculoId, onGuardado, registros }) {
-  const [form, setForm] = useState({ tipo: 'motor', marca: '', fecha_ultimo_cambio: '', proxima_fecha: '', observacion: '' });
+  const [form, setForm] = useState({ tipo: 'motor', marca: '', fecha_ultimo_cambio: '', proxima_fecha: '', observacion: '', costo:'', numero_factura:'', numero_comprobante:'', enlace:'' });
   const [aviso, setAviso] = useState('');
   const [guardando, setGuardando] = useState(false);
 
@@ -224,7 +230,7 @@ function FormularioAceites({ vehiculoId, onGuardado, registros }) {
     const data = await res.json();
     setGuardando(false);
     if (!res.ok) { setAviso(data.error || 'No se pudo registrar'); return; }
-    setForm({ tipo: form.tipo, marca: '', fecha_ultimo_cambio: '', proxima_fecha: '', observacion: '' });
+    setForm({ tipo: form.tipo, marca: '', fecha_ultimo_cambio: '', proxima_fecha: '', observacion: '', costo:'', numero_factura:'', numero_comprobante:'', enlace:'' });
     await onGuardado();
   }
 
@@ -260,7 +266,10 @@ function FormularioAceites({ vehiculoId, onGuardado, registros }) {
         <input placeholder="Marca" value={form.marca} onChange={e => setForm({ ...form, marca: e.target.value })} className={`${inputCls} text-sm`} />
         <input type="date" title="Último cambio" value={form.fecha_ultimo_cambio} onChange={e => setForm({ ...form, fecha_ultimo_cambio: e.target.value })} className={`${inputCls} text-sm`} />
         <input type="date" min={form.fecha_ultimo_cambio || undefined} title="Próximo cambio" value={form.proxima_fecha} onChange={e => setForm({ ...form, proxima_fecha: e.target.value })} className={`${inputCls} text-sm`} />
-        <button type="button" onClick={guardar} disabled={guardando} className="px-3 py-2 rounded-lg text-xs font-medium bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-60 whitespace-nowrap sm:col-span-2 md:col-span-1">+ Registrar aceite</button>
+        <input type="number" step="0.01" min="0" placeholder="Costo (Bs.)" value={form.costo} onChange={e=>setForm({...form,costo:e.target.value})} className={`${inputCls} text-sm`} />
+        <input placeholder="Nº Factura" value={form.numero_factura} onChange={e=>setForm({...form,numero_factura:e.target.value})} className={`${inputCls} text-sm`} />
+        <input placeholder="Enlace" value={form.enlace} onChange={e=>setForm({...form,enlace:e.target.value})} className={`${inputCls} text-sm`} />
+        <button type="button" onClick={guardar} disabled={guardando} className="px-3 py-2 rounded-lg text-xs font-medium bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-60 whitespace-nowrap">+ Registrar aceite</button>
       </div>
       {aviso && <p className="mt-2 text-xs text-red-500">{aviso}</p>}
     </>
@@ -384,6 +393,24 @@ function AlertaMantenimiento({ llantas, aceites }) {
   );
 }
 
+function ResumenPlaca({ placa }){
+  const [res, setRes]=useState(null);
+  useEffect(()=>{ if(!placa) return; fetch(`/api/gastos-placa?placa=${placa}&periodo=todo`).then(r=>r.json()).then(d=>{ if(d.resumen) setRes(d.resumen)}).catch(()=>{}); },[placa]);
+  if(!res) return null;
+  const fmt=n=>`Bs. ${Number(n||0).toLocaleString('es-BO')}`;
+  return (
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 mb-4">
+      <h3 className="font-semibold text-sm mb-2">Resumen histórico por placa — {placa}</h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+        <div className="bg-slate-50 rounded p-2"><div className="text-slate-400 uppercase text-[10px]">Viajes</div><div className="font-bold text-sm">{res.viajes}</div></div>
+        <div className="bg-slate-50 rounded p-2"><div className="text-slate-400 uppercase text-[10px]">Llantas</div><div className="font-bold text-sm">{res.llantas.n} · {fmt(res.llantas.total)}</div></div>
+        <div className="bg-slate-50 rounded p-2"><div className="text-slate-400 uppercase text-[10px]">Aceites</div><div className="font-bold text-sm">{res.aceites.n} · {fmt(res.aceites.total)}</div></div>
+        <div className="bg-slate-50 rounded p-2"><div className="text-slate-400 uppercase text-[10px]">Total general (sin póliza)</div><div className="font-bold text-sm text-blue-700">{fmt(res.total_general)}</div></div>
+      </div>
+      <p className="text-[11px] text-slate-400 mt-2">Repuestos: {res.repuestos.n} · {fmt(res.repuestos.total)} · Gastos chofer: {res.gastos_chofer.n} · {fmt(res.gastos_chofer.total)} · Impuestos: {res.impuestos.n} · {fmt(res.impuestos.total)} · Póliza anual: {fmt(res.seguros.total)}</p>
+    </div>
+  );
+}
 function BadgeMant({ texto }) {
   if (!texto) return <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>;
   return (

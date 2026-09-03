@@ -24,6 +24,8 @@ function validarAceite(body = {}) {
   if (proxima === undefined) return { error: 'Próxima fecha de cambio inválida' };
   if (!ultimo && !proxima) return { error: 'Registre al menos una fecha de cambio' };
 
+  const costo = body.costo===''||body.costo==null?null:Number(body.costo);
+  if (costo!==null && (!isFinite(costo)||costo<0)) return { error: 'Costo inválido' };
   return {
     datos: {
       tipo: body.tipo,
@@ -31,6 +33,7 @@ function validarAceite(body = {}) {
       fecha_ultimo_cambio: ultimo,
       proxima_fecha: proxima,
       observacion: texto(body.observacion),
+      costo, numero_factura: texto(body.numero_factura), numero_comprobante: texto(body.numero_comprobante), enlace: texto(body.enlace),
     },
   };
 }
@@ -52,9 +55,9 @@ export async function POST(request, { params }) {
   if (existe.length === 0) return NextResponse.json({ error: 'Vehículo no encontrado' }, { status: 404 });
 
   const rows = await query(
-    `INSERT INTO aceites (flota_id, tipo, marca, fecha_ultimo_cambio, proxima_fecha, observacion)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-    [id, d.tipo, d.marca, d.fecha_ultimo_cambio, d.proxima_fecha, d.observacion]
+    `INSERT INTO aceites (flota_id, tipo, marca, fecha_ultimo_cambio, proxima_fecha, observacion, costo, numero_factura, numero_comprobante, enlace)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [id, d.tipo, d.marca, d.fecha_ultimo_cambio, d.proxima_fecha, d.observacion, d.costo, d.numero_factura, d.numero_comprobante, d.enlace]
   );
   return NextResponse.json({ aceite: rows[0] }, { status: 201 });
 }
