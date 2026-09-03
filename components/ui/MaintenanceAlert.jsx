@@ -80,8 +80,9 @@ export function MaintenanceWidget(){
     setDias(INTERVALO_DIAS); setVencido(false);
   }
   if(dias===null) return null;
+  if(!vencido) return null;
   return (
-    <div className={`rounded-xl border p-3 ${vencido ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-900' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'}`}>
+    <div className="rounded-xl border p-3 bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-900">
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs font-bold text-slate-700 dark:text-slate-200">🔧 Mantenimiento cada 30 días</span>
         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${vencido ? 'bg-amber-500 text-white' : 'bg-green-100 text-green-700'}`}>{vencido ? '¡Vencido!' : `${dias} días restantes`}</span>
