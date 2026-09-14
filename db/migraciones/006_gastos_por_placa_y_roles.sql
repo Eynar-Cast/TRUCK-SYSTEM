@@ -12,7 +12,7 @@ DO $$ BEGIN
   ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_role_check1;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
-ALTER TABLE usuarios ADD CONSTRAINT usuarios_role_check CHECK (role IN ('user','admin','secretaria'));
+ALTER TABLE usuarios ADD CONSTRAINT usuarios_role_check CHECK (role IN ('user','admin','secretaria','supervisor'));
 
 -- ---- Conductor_documentos: solo enlace texto + Nº factura/comprobante ----
 ALTER TABLE conductor_documentos ADD COLUMN IF NOT EXISTS numero_factura TEXT;
